@@ -4,17 +4,7 @@ import os from 'os'
 import path from 'path'
 
 import { FastStats } from './stats'
-import {
-  analyzeColors,
-  buildIvfHeader,
-  chunkedPromiseAll,
-  ffmpeg,
-  ffprobe,
-  FFProbeProcess,
-  getFiles,
-  logger,
-  runShellCommand,
-} from './utils'
+import { analyzeColors, chunkedPromiseAll, ffprobe, FFProbeProcess, getFiles, logger, runShellCommand } from './utils'
 
 const log = logger('webrtcperf:vmaf')
 
@@ -42,40 +32,47 @@ export async function parseVideo(fpath: string) {
   return { width, height, frameRate }
 }
 
-export async function convertToIvf(fpath: string, crop?: Crop, keepSourceFile = true) {
+export async function prepareVideo(name: string, crop?: string, keepSourceFile = true) {
+  const [fpath, id] = name.split(',')
+  const { width, height, frameRate } = await parseVideo(fpath)
+  const outputPath = fpath.replace(/\.[^.]+$/, '.mp4')
+  log.info(`prepareVideo ${fpath} ${width}x${height}@${frameRate} -> ${outputPath} ${crop && `crop: ${crop}`}`)
+
+  if (fs.existsSync(outputPath)) {
+    throw new Error(`Output file ${outputPath} already exists`)
+  }
+  const fontsize = Math.round(height / 18)
+  const textHeight = Math.round(fontsize * 1.2)
+  const filter = crop ? cropFilter(json5.parse(crop), 0, ',') : ''
+  await runShellCommand(
+    `ffmpeg -hide_banner -loglevel warning -threads ${os.cpus().length} \
+-i ${fpath} -map 0:v \
+-filter_complex "[0:v]${filter}\
+drawbox=x=0:y=0:w=iw:h=${textHeight}:color=black:t=fill,\
+drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf:text='${id || 0}-%{eif\\:t*1000\\:u}':fontcolor=white:fontsize=${fontsize}:x=(w-text_w)/2:y=(${textHeight}-text_h)/2" \
+-fps_mode vfr -c:v libx264 -crf 10 -an \
+-f mp4 -movflags +faststart ${outputPath}`,
+    true,
+  )
+
+  if (!keepSourceFile) {
+    await fs.promises.unlink(fpath)
+  }
+}
+
+export async function convertToIvf(fpath: string, crop?: string, keepSourceFile = true) {
   const { width, height, frameRate } = await parseVideo(fpath)
   const outputPath = fpath.replace(/\.[^.]+$/, '.ivf.raw')
-  log.debug(`convertToIvf ${fpath} ${width}x${height}@${frameRate} -> ${outputPath}`)
+  log.debug(`convertToIvf ${fpath} ${width}x${height}@${frameRate} -> ${outputPath} crop:`, crop)
 
-  const fd = await fs.promises.open(outputPath, 'w')
-  const header = buildIvfHeader(
-    width - (crop?.left || 0) - (crop?.right || 0),
-    height - (crop?.top || 0) - (crop?.bottom || 0),
-    frameRate,
-    'VP80',
+  const filter = crop ? `-vf '${cropFilter(json5.parse(crop))}'` : ''
+  await runShellCommand(
+    `ffmpeg -y -hide_banner -y -loglevel warning -i ${fpath} -map 0:v \
+      -c:v vp8 -quality best -cpu-used 0 -crf 1 -b:v 20M -qmin 1 -qmax 1 \
+      -g 1 -threads ${os.cpus().length} ${filter} -an \
+      -f ivf ${outputPath}`,
+    true,
   )
-  await fd.write(header)
-
-  let pts = 0
-  let pos = header.byteLength
-  const filter = crop ? cropFilter(crop) : ''
-  await ffmpeg(
-    `-y -i ${fpath} -map 0:v -c:v vp8 -quality good -cpu-used 0 -crf 1 -b:v 20M -qmin 1 -qmax 10 -g 1 -threads ${os.cpus().length} -vf '${filter}' -an -f data`,
-    async data => {
-      const { byteLength } = data
-      const frameHeader = Buffer.alloc(12)
-      frameHeader.writeUInt32LE(byteLength, 0)
-      frameHeader.writeBigUInt64LE(BigInt(pts), 4)
-      await fd.write(frameHeader, 0, 12, pos)
-      await fd.write(data, 0, byteLength, pos + 12)
-      pos += 12 + byteLength
-      pts++
-    },
-  )
-  header.writeUint32LE(pts, 24)
-  await fd.write(header, 0, header.byteLength, 0)
-  log.debug(`${outputPath} pts: ${pts} size: ${pos}`)
-  await fd.close()
 
   await fixIvfFrames(outputPath, keepSourceFile)
 }
@@ -95,7 +92,7 @@ export async function recognizeFrames(
   let firstTimestamp = 0
   let lastTimestamp = 0
   let participantDisplayName = ''
-  const regExp = /(?<name>[0-9]{1,6})-(?<time>[0-9]{13,13})/
+  const regExp = /(?<name>[0-9]{1,6})-(?<time>[0-9]{3,13})/
   await ffprobe(
     fpath,
     'video',
@@ -336,7 +333,7 @@ export async function fixIvfFiles(directory: string, keepSourceFiles = true) {
           log.error(`fixIvfFrames error: ${(err as Error).stack}`)
         }
       },
-      Math.ceil(os.cpus().length / 2),
+      Math.ceil(os.cpus().length / 4),
     )
     for (const res of results) {
       if (!res) continue
@@ -391,8 +388,8 @@ export async function runVmaf(
 ) {
   const comparisonDir = path.dirname(degradedPath)
   const comparisonName = path.basename(degradedPath.replace(/\.[^.]+$/, ''))
-  const cropDest = cropConfig[comparisonName] || {}
-  const crop = { deg: cropDest.deg ? { ...cropDest.deg } : {}, ref: cropDest.ref ? { ...cropDest.ref } : {} }
+  const cropDest = cropConfig[comparisonName]
+  const crop = { ref: fixCrop(cropDest?.ref), deg: fixCrop(cropDest?.deg) }
 
   log.info('runVmaf', { referencePath, degradedPath, preview, crop })
   await fs.promises.mkdir(path.join(comparisonDir, comparisonName), { recursive: true })
@@ -416,33 +413,24 @@ export async function runVmaf(
     frameRate: degFrameRate,
     frames: degFrames,
   } = await parseIvf(degradedPath, false)
-  const refTextHeight = cropTimeOverlay ? Math.round(Math.round(refHeight / 18) * 1.2) : 0
-  const degTextHeight = cropTimeOverlay ? Math.round(Math.round(degHeight / 18) * 1.2) : 0
 
-  if (!crop.ref) crop.ref = {}
-  crop.ref.top = (crop.ref.top || 0) + refTextHeight
+  const textHeight = cropTimeOverlay ? '1.2*(ih/18)' : ''
+  if (textHeight) {
+    crop.ref.h = `${crop.ref.h}-${textHeight}`
+    crop.ref.y = `${crop.ref.y}+${textHeight}`
 
-  if (!crop.deg) crop.deg = {}
-  crop.deg.top = (crop.deg.top || 0) + degTextHeight
+    crop.deg.h = `${crop.deg.h}-${textHeight}`
+    crop.deg.y = `${crop.deg.y}+${textHeight}`
+  }
 
   // Adjust the reference aspect ratio to match the degraded one.
   const refAspectRatio = refWidth / refHeight
   const degAspectRatio = degWidth / degHeight
   if (refAspectRatio > degAspectRatio) {
-    const diff = (refWidth - refHeight * degAspectRatio) / 2
-    crop.ref.left = (crop.ref.left || 0) + diff
-    crop.ref.right = (crop.ref.right || 0) + diff
+    const diff = `(iw-${refHeight}*${degWidth}/${degHeight})`
+    crop.ref.w = `${crop.ref.w}-${diff}`
+    crop.ref.x = `${crop.ref.x}+${diff}/2`
   }
-
-  // Scale using the minimum width and height.
-  const width = Math.min(
-    refWidth - (crop.ref.left || 0) - (crop.ref.right || 0),
-    degWidth - (crop.deg.left || 0) - (crop.deg.right || 0),
-  )
-  const height = Math.min(
-    refHeight - (crop.ref.top || 0) - (crop.ref.bottom || 0),
-    degHeight - (crop.deg.top || 0) - (crop.deg.bottom || 0),
-  )
 
   if (refFrameRate !== degFrameRate) {
     throw new Error(`runVmaf: frame rates do not match: ref=${refFrameRate} deg=${degFrameRate}`)
@@ -462,25 +450,21 @@ export async function runVmaf(
   referencePath = await filterIvfFrames(referencePath, commonRefFrames)
   degradedPath = await filterIvfFrames(degradedPath, commonDegFrames)
   log.debug(`common frames: ${commonRefFrames.length} ref: ${refFrames.size} deg: ${degFrames.size}`, {
-    width,
-    height,
-    ...crop,
+    crop,
   })
 
-  const ffmpegCmd = `ffmpeg -loglevel warning -y -threads ${cpus} \
+  const ffmpegCmd = `ffmpeg -hide_banner -loglevel warning -y -threads ${cpus} \
 -i ${degradedPath} \
 -i ${referencePath} \
 `
 
   const filter = `\
 [0:v]\
-${cropFilter(crop.deg, ',')}\
-${scaleFilter(width, height)}\
-${preview ? ',split=3[deg1][deg2][deg3]' : 'split=32[deg1][deg2]'};\
+${cropFilter(crop.deg)}\
+${preview ? ',split=3[deg1][deg2][deg3]' : ',split=3[deg][deg1][deg2]'};\
 [1:v]\
-${cropFilter(crop.ref, ',')}\
-${scaleFilter(width, height)}\
-${preview ? ',split=3[ref1][ref2][ref3]' : 'split=2[ref1][ref2]'};\
+${cropFilter(crop.ref, 0)}[ref];[ref][deg]scale=w=rw:h=rh:flags=bilinear,\
+${preview ? 'split=3[ref1][ref2][ref3]' : 'split=2[ref1][ref2]'};\
 [deg1][ref1]libvmaf=model='path=/usr/share/model/vmaf_v0.6.1.json':log_fmt=json:log_path=${vmafLogPath}:n_subsample=1:n_threads=${cpus}:shortest=1[vmaf];\
 [deg2][ref2]psnr=stats_file=${psnrLogPath}[psnr]\
 `
@@ -603,7 +587,7 @@ async function writeGraph(vmafLogPath: string, frameRate: number) {
   await fs.promises.writeFile(fpath, buffer)
 }
 
-type Crop = { top?: number; bottom?: number; left?: number; right?: number }
+type Crop = { w: string; h: string; x: string; y: string }
 
 type VmafCrop = Record<
   string,
@@ -613,17 +597,19 @@ type VmafCrop = Record<
   }
 >
 
-const cropFilter = (crop?: Crop, suffix = '') => {
-  if (!crop) return ''
-  const { top, bottom, left, right } = crop
-  if (!top && !bottom && !left && !right) return `crop${suffix}`
-  const width = (left || 0) + (right || 0)
-  const height = (top || 0) + (bottom || 0)
-  return `crop=w=iw-${width}:h=ih-${height}:x=${left || 0}:y=${top || 0}:exact=1${suffix}`
+const fixCrop = (c?: Record<string, string>) => {
+  return {
+    w: c?.w || 'iw',
+    h: c?.h || 'ih',
+    x: c?.x || '0',
+    y: c?.y || '0',
+  }
 }
 
-const scaleFilter = (width?: number, height?: number, suffix = '') => {
-  return `scale=w=${width || 'in_w'}:h=${height || 'in_h'}:flags=bicubic${suffix}`
+const cropFilter = (crop: Crop, exact = 0, suffix = '') => {
+  const { w, h, x, y } = crop
+  if (!x && !w && !x && !y) return `crop${suffix}`
+  return `crop=w=${w}:h=${h}:x=${x}:y=${y}:exact=${exact}${suffix}`
 }
 
 type VmafConfig = {
@@ -673,7 +659,7 @@ if (require.main === module) {
   ;(async (): Promise<void> => {
     switch (process.argv[2]) {
       case 'convert':
-        await convertToIvf(process.argv[3], json5.parse(process.argv[4]) as Crop, false)
+        await convertToIvf(process.argv[3], process.argv[4], false)
         break
       case 'analyze':
         console.log(JSON.stringify(await analyzeColors(process.argv[3]), null, 2))
@@ -689,8 +675,8 @@ if (require.main === module) {
           vmafKeepSourceFiles: true,
           vmafCrop: json5.stringify({
             'Participant-000001_recv-by_Participant-000000': {
-              deg: { top: 0, bottom: 0, left: 0, right: 0 },
-              ref: { top: 0, bottom: 0, left: 0, right: 0 },
+              deg: { w: '', h: '', x: '', y: '' },
+              ref: { w: '', h: '', x: '', y: '' },
             },
           }),
         })

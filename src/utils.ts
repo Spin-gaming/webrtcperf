@@ -1200,8 +1200,8 @@ import * as zmq from 'zeromq'
 
 export async function ffmpeg(command = 'video', processFn: (frame: Buffer) => void): Promise<void> {
   const port = 10000 + Math.floor(Math.random() * 10000)
-  const cmd = `exec ffmpeg -loglevel error ${command} zmq:tcp://127.0.0.1:${port}`
-  log.debug(`ffmpeg ${cmd}`)
+  const cmd = `exec ffmpeg -hide_banner -loglevel warning ${command} zmq:tcp://127.0.0.1:${port}`
+  log.debug(`${cmd}`)
   let stderr = ''
 
   const sub = new zmq.Subscriber()

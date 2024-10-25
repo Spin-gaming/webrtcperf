@@ -704,6 +704,7 @@ alert will be successful only when at least 95% of the checks pass.`,
     env: 'SERVER_DATA',
     arg: 'server-data',
   },
+  // VMAF config
   vmafPath: {
     doc: `When set, it runs the VMAF calculator for the video files saved under the provided directory path.`,
     format: String,
@@ -736,13 +737,43 @@ the reference and degraded versions.`,
   },
   vmafCrop: {
     doc: `If set, the reference and degraded videos will be cropped using the specified configuration in JSON5 format. \
-E.g. \`{ ref: { width: 10, height: 5 }, deg: { width: 2, height: 4 } }\``,
+Crop configuration should be expressed using the ffmpeg crop filter syntax (https://ffmpeg.org/ffmpeg-filters.html#crop). \
+E.g. \`{ "Participant-000001_recv-by_Participant-000000': { ref: { w: "iw-10", h: "ih-5" }, deg: { w: "200", h: "200" } } }\``,
     format: String,
     nullable: true,
     default: '',
     env: 'VMAF_CROP',
     arg: 'vmaf-crop',
   },
+  vmafPrepareVideo: {
+    doc: `When set, it prepares the selected video applying a timestamp overlay on top of it. \
+The filename must be provided in the format \`<video path>,<ID>\`, where the selected ID will be used unique video identifier in the overlay.`,
+    format: String,
+    nullable: true,
+    default: '',
+    env: 'VMAF_PREPARE_VIDEO',
+    arg: 'vmaf-prepare-video',
+  },
+  vmafProcessVideo: {
+    doc: `When set, it runs the VMAF video preprocessor, that converts a video file into the IVF format with timestamps matching the overlay recognition. \
+The filename must contain a \`recv\` or \`send\` string to identify if the video was a reference (send) or a degraded version (recv), e.g. \`Participant1_recv.mp4\`.`,
+    format: String,
+    nullable: true,
+    default: '',
+    env: 'VMAF_PROCESS_VIDEO',
+    arg: 'vmaf-process-video',
+  },
+  vmafVideoCrop: {
+    doc: `If set, the vmaf prepared/processed video will be cropped using the specified configuration in JSON5 format. \
+Crop configuration should be expressed using the ffmpeg crop filter syntax (https://ffmpeg.org/ffmpeg-filters.html#crop). \
+E.g. \`{ w: "iw-10", h: "ih-5", x: "10", y: '5' }\``,
+    format: String,
+    nullable: true,
+    default: '',
+    env: 'VMAF_VIDEO_CROP',
+    arg: 'vmaf-video-crop',
+  },
+  // VISQOL config
   visqolPath: {
     doc: `When set, it runs the visqol calculator for the audio files saved under the provided directory path.`,
     format: String,

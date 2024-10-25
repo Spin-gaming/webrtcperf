@@ -20,7 +20,7 @@ import {
   stopTimers,
 } from './utils'
 import { calculateVisqolScore } from './visqol'
-import { calculateVmafScore } from './vmaf'
+import { calculateVmafScore, convertToIvf, prepareVideo } from './vmaf'
 
 const log = logger('webrtcperf')
 
@@ -158,6 +158,16 @@ async function main(): Promise<void> {
   // vmaf score.
   if (config.vmafPath) {
     await calculateVmafScore(config)
+    process.exit(0)
+  }
+
+  if (config.vmafPrepareVideo) {
+    await prepareVideo(config.vmafPrepareVideo, config.vmafVideoCrop, true)
+    process.exit(0)
+  }
+
+  if (config.vmafProcessVideo) {
+    await convertToIvf(config.vmafProcessVideo, config.vmafVideoCrop, false)
     process.exit(0)
   }
 
