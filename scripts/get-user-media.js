@@ -1,4 +1,4 @@
-/* global webrtcperf, log, sleep, applyAudioTimestampWatermark */
+/* global webrtcperf, log, sleep */
 
 const applyOverride = (constraints, override) => {
   if (override) {
@@ -171,7 +171,7 @@ if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
     }
 
     if (webrtcperf.enabledForSession(window.PARAMS?.timestampWatermarkAudio)) {
-      mediaStream = applyAudioTimestampWatermark(mediaStream)
+      mediaStream = webrtcperf.applyAudioTimestampWatermark(mediaStream)
     }
 
     if (webrtcperf.enabledForSession(window.PARAMS?.timestampWatermarkVideo)) {

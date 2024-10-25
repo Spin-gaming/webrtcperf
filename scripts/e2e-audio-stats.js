@@ -35,13 +35,13 @@ function convertTypedArray(src, type) {
   return new type(buffer)
 }
 
-let ggwave = null
+webrtcperf.ggwave = null
 
 if (webrtcperf.enabledForSession(window.PARAMS?.timestampWatermarkAudio)) {
   document.addEventListener('DOMContentLoaded', async () => {
     try {
-      ggwave = await ggwave_factory()
-      if (!window.PARAMS?.timestampWatermarkAudioDebug) ggwave.disableLog()
+      webrtcperf.ggwave = await ggwave_factory()
+      if (!window.PARAMS?.timestampWatermarkAudioDebug) webrtcperf.ggwave.disableLog()
     } catch (e) {
       log(`ggwave error: ${e}`)
     }
@@ -49,22 +49,21 @@ if (webrtcperf.enabledForSession(window.PARAMS?.timestampWatermarkAudio)) {
 }
 
 /** @type AudioContext */
-let audioContext = null
+webrtcperf.audioContext = null
 /** @type MediaStreamAudioDestinationNode */
-let audioDestination = null
+webrtcperf.audioDestination = null
 
-const SEND_PERIOD = 5000
+webrtcperf.initAudioTimestampWatermarkSender = (interval = 5000) => {
+  if (webrtcperf.audioContext) return
+  log(`initAudioTimestampWatermarkSender with interval ${interval}ms`)
 
-function initAudioTimestampWatermarkSender() {
-  if (audioContext) return
-  log(`initAudioTimestampWatermarkSender with interval ${SEND_PERIOD}ms`)
-
+  const ggwave = webrtcperf.ggwave
   const AudioContext = window.AudioContext || window.webkitAudioContext
-  audioContext = new AudioContext({
+  const audioContext = (webrtcperf.audioContext = new AudioContext({
     latencyHint: 'interactive',
     sampleRate: 48000,
-  })
-  audioDestination = audioContext.createMediaStreamDestination()
+  }))
+  webrtcperf.audioDestination = audioContext.createMediaStreamDestination()
   const parameters = ggwave.getDefaultParameters()
   parameters.sampleRateInp = audioContext.sampleRate
   parameters.sampleRateOut = audioContext.sampleRate
@@ -79,18 +78,19 @@ function initAudioTimestampWatermarkSender() {
     buffer.copyToChannel(buf, 0)
     const source = audioContext.createBufferSource()
     source.buffer = buffer
-    source.connect(audioDestination)
+    source.connect(webrtcperf.audioDestination)
     source.start()
-  }, SEND_PERIOD)
+  }, interval)
 }
 
-window.applyAudioTimestampWatermark = mediaStream => {
+webrtcperf.applyAudioTimestampWatermark = mediaStream => {
   if (mediaStream.getAudioTracks().length === 0) {
     return mediaStream
   }
-  if (!audioDestination) {
-    initAudioTimestampWatermarkSender()
+  if (!webrtcperf.audioContext || !webrtcperf.audioDestination) {
+    webrtcperf.initAudioTimestampWatermarkSender()
   }
+  const { audioContext, audioDestination } = webrtcperf
   log(
     `AudioTimestampWatermark tx overrideGetUserMediaStream`,
     mediaStream.getAudioTracks()[0].id,
@@ -127,6 +127,7 @@ window.recognizeAudioTimestampWatermark = track => {
   }
   processingAudioTracks += 1
 
+  const ggwave = webrtcperf.ggwave
   const samplesPerFrame = 1024
   const buf = new Float32Array(samplesPerFrame)
   let bufIndex = 0
