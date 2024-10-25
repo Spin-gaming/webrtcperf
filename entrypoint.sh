@@ -17,4 +17,5 @@ if [ $1 = '--run-as-user' ]; then
     exec sudo -EH -u ubuntu node app.min.js $@
 fi
 
+umask 000
 exec node app.min.js $@
