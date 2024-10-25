@@ -1,4 +1,4 @@
-/* global webrtcperf, log, getParticipantNameForSave, createWorker */
+/* global webrtcperf, log, getParticipantNameForSave, createWorker, VideoFrame, VideoEncoder */
 
 const saveFileWorkerFn = () => {
   const log = (...args) => {
@@ -42,7 +42,7 @@ const saveFileWorkerFn = () => {
   const websocketControllers = new Map()
 
   onmessage = async ({ data }) => {
-    const { action, id, url, readable, kind, quality, x, y, width, height, frameRate } = data
+    const { action, id, url, readable, kind, x, y, width, height, frameRate } = data
     const controller = new AbortController()
     log(`action=${action} id=${id} kind=${kind} url=${url}`)
     if (action === 'stop') {
@@ -54,65 +54,94 @@ const saveFileWorkerFn = () => {
     const ws = await wsClient(url)
     websocketControllers.set(id, controller)
     if (kind === 'video') {
+      let headerSent = false
+      let startTimestamp = -1
+      let lastPts = 0
       const header = new ArrayBuffer(12)
       const view = new DataView(header)
-      let headerWritten = false
-      let startTimestamp = -1
-      let lastPts = -1
-      const writableStream = new WritableStream(
-        {
-          async write(/** @type VideoFrame */ frame) {
-            const { timestamp, codedWidth, codedHeight } = frame
-            if (startTimestamp < 0) {
+
+      const encoder = new VideoEncoder({
+        output: chunk => {
+          if (ws.readyState !== WebSocket.OPEN) return
+          try {
+            const { byteLength, timestamp } = chunk
+            if (!headerSent) {
+              writeIvfHeader(ws, width, height, frameRate, 1, 'VP80')
+              headerSent = true
+            }
+            if (startTimestamp === -1) {
               startTimestamp = timestamp
             }
             const pts = Math.floor((frameRate * (timestamp - startTimestamp)) / 1000000)
-            if (!codedWidth || !codedHeight || ws.readyState !== WebSocket.OPEN || pts <= lastPts) {
-              frame.close()
-              return
-            }
-            const bitmap = await createImageBitmap(
-              frame,
-              x,
-              y,
-              Math.min(width, codedWidth),
-              Math.min(height, codedHeight),
-            )
-            frame.close()
-            const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-            const ctx = canvas.getContext('bitmaprenderer')
-            ctx.transferFromImageBitmap(bitmap)
-            bitmap.close()
+            if (pts <= lastPts) return
+            const data = new ArrayBuffer(byteLength)
+            chunk.copyTo(data)
+
+            view.setUint32(0, byteLength, true)
+            view.setBigUint64(4, BigInt(pts), true)
+            const buf = new Uint8Array(header.byteLength + byteLength)
+            buf.set(new Uint8Array(header), 0)
+            buf.set(new Uint8Array(data), header.byteLength)
+            ws.send(buf)
+            lastPts = pts
+          } catch (err) {
+            log(`saveMediaTrack ${url} error=${err.message}`)
+          }
+        },
+        error: e => {
+          console.log(e.message)
+        },
+      })
+      encoder.configure({
+        codec: 'vp8',
+        width,
+        height,
+        bitrate: 20_000_000,
+        framerate: frameRate,
+        bitrateMode: 'variable',
+        latencyMode: 'quality',
+      })
+
+      const writableStream = new WritableStream(
+        {
+          async write(/** @type VideoFrame */ frame) {
+            const { codedWidth, codedHeight } = frame
             try {
-              const blob = await canvas.convertToBlob({
-                type: 'image/jpeg',
-                quality,
-              })
-              const data = await blob.arrayBuffer()
-              if (!headerWritten) {
-                headerWritten = true
-                log(`saveTrack ${url} writeIvfHeader ${canvas.width}x${canvas.height}@${frameRate}`)
-                writeIvfHeader(ws, canvas.width, canvas.height, frameRate, 1, 'MJPG')
+              if (!codedWidth || !codedHeight) return
+              if (x || y || width !== codedWidth || height !== codedHeight) {
+                const bitmap = await createImageBitmap(
+                  frame,
+                  x,
+                  y,
+                  Math.min(width, codedWidth),
+                  Math.min(height, codedHeight),
+                )
+                frame.close()
+                frame = new VideoFrame(bitmap, {
+                  timestamp: frame.timestamp,
+                  duration: frame.duration,
+                })
+                bitmap.close()
               }
-              view.setUint32(0, data.byteLength, true)
-              view.setBigUint64(4, BigInt(pts), true)
-              const buf = new Uint8Array(header.byteLength + data.byteLength)
-              buf.set(new Uint8Array(header), 0)
-              buf.set(new Uint8Array(data), header.byteLength)
-              ws.send(buf)
-              lastPts = pts
+              encoder.encode(frame, { keyFrame: true })
             } catch (err) {
               log(`saveMediaTrack ${url} error=${err.message}`)
+            } finally {
+              frame.close()
             }
           },
           close() {
             log(`saveTrack ${url} close`)
+            encoder.flush()
+            encoder.close()
             ws.close()
             websocketControllers.delete(id)
             postMessage({ name: 'close', id, kind })
           },
           abort(reason) {
             log(`saveTrack ${url} abort reason:`, reason)
+            encoder.flush()
+            encoder.close()
             ws.close()
             websocketControllers.delete(id)
             postMessage({ name: 'close', reason, id, kind })
