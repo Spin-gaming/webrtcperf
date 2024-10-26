@@ -32,10 +32,16 @@ export async function parseVideo(fpath: string) {
   return { width, height, frameRate }
 }
 
+/**
+ * It prepares a video file for VMAF evaluation applying a timestamp video overlay.
+ * @param name The input video file path with the ouput id (e.g `filename.flv,1`).
+ * @param crop If the video should be cropped.
+ * @param keepSourceFile If the source file should be kept.
+ */
 export async function prepareVideo(name: string, crop?: string, keepSourceFile = true) {
   const [fpath, id] = name.split(',')
   const { width, height, frameRate } = await parseVideo(fpath)
-  const outputPath = fpath.replace(/\.[^.]+$/, '.mp4')
+  const outputPath = path.join(path.dirname(fpath), `${id}_send.mp4`)
   log.info(`prepareVideo ${fpath} ${width}x${height}@${frameRate} -> ${outputPath} ${crop && `crop: ${crop}`}`)
 
   if (fs.existsSync(outputPath)) {
@@ -46,11 +52,11 @@ export async function prepareVideo(name: string, crop?: string, keepSourceFile =
   const filter = crop ? cropFilter(json5.parse(crop), 0, ',') : ''
   await runShellCommand(
     `ffmpeg -hide_banner -loglevel warning -threads ${os.cpus().length} \
--i ${fpath} -map 0:v \
+-i ${fpath} \
 -filter_complex "[0:v]${filter}\
 drawbox=x=0:y=0:w=iw:h=${textHeight}:color=black:t=fill,\
-drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf:text='${id || 0}-%{eif\\:t*1000\\:u}':fontcolor=white:fontsize=${fontsize}:x=(w-text_w)/2:y=(${textHeight}-text_h)/2" \
--fps_mode vfr -c:v libx264 -crf 10 -an \
+drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf:text='${id || 0}-%{eif\\:t*1000\\:u}':fontcolor=white:fontsize=${fontsize}:x=(w-text_w)/2:y=(${textHeight}-text_h)/2[out]" \
+-map [out] -fps_mode vfr -c:v libx264 -crf 10 -an \
 -f mp4 -movflags +faststart ${outputPath}`,
     true,
   )
@@ -60,6 +66,12 @@ drawtext=fontfile=/usr/share/fonts/truetype/noto/NotoMono-Regular.ttf:text='${id
   }
 }
 
+/**
+ * It converts a video file to VP8/IVF format.
+ * @param fpath The input video file path.
+ * @param crop The crop filter.
+ * @param keepSourceFile If the source file should be kept.
+ */
 export async function convertToIvf(fpath: string, crop?: string, keepSourceFile = true) {
   const { width, height, frameRate } = await parseVideo(fpath)
   const outputPath = fpath.replace(/\.[^.]+$/, '.ivf.raw')
@@ -77,6 +89,13 @@ export async function convertToIvf(fpath: string, crop?: string, keepSourceFile 
   await fixIvfFrames(outputPath, keepSourceFile)
 }
 
+/**
+ * It recognizes the frames of a video file using OCR.
+ * @param fpath The input video file path.
+ * @param recover If missing frames should be recovered.
+ * @param crop If the video should be cropped.
+ * @param debug Enable debug logging.
+ */
 export async function recognizeFrames(
   fpath: string,
   recover = false,
@@ -460,18 +479,19 @@ export async function runVmaf(
 
   const filter = `\
 [0:v]\
-${cropFilter(crop.deg)}\
-${preview ? ',split=3[deg1][deg2][deg3]' : ',split=3[deg][deg1][deg2]'};\
+${cropFilter(crop.deg, 0, ',')}\
+${splitFilter(['deg_scale', 'deg_vmaf', 'deg_psnr', preview ? 'deg_preview' : ''])};\
 [1:v]\
-${cropFilter(crop.ref, 0)}[ref];[ref][deg]scale=w=rw:h=rh:flags=bilinear,\
-${preview ? 'split=3[ref1][ref2][ref3]' : 'split=2[ref1][ref2]'};\
-[deg1][ref1]libvmaf=model='path=/usr/share/model/vmaf_v0.6.1.json':log_fmt=json:log_path=${vmafLogPath}:n_subsample=1:n_threads=${cpus}:shortest=1[vmaf];\
-[deg2][ref2]psnr=stats_file=${psnrLogPath}[psnr]\
+${cropFilter(crop.ref, 0)}[ref_scale];\
+[ref_scale][deg_scale]scale=w=rw:h=rh:flags=bilinear,\
+${splitFilter(['ref_vmaf', 'ref_psnr', preview ? 'ref_preview' : ''])};\
+[deg_vmaf][ref_vmaf]libvmaf=model='path=/usr/share/model/vmaf_v0.6.1.json':log_fmt=json:log_path=${vmafLogPath}:n_subsample=1:n_threads=${cpus}:shortest=1[vmaf];\
+[deg_psnr][ref_psnr]psnr=stats_file=${psnrLogPath}[psnr]\
 `
 
   const cmd = preview
     ? `${ffmpegCmd} \
--filter_complex "${filter};[ref3][deg3]hstack[stacked]" \
+-filter_complex "${filter};[ref_preview][deg_preview]hstack[stacked]" \
 -map [vmaf] -f null - \
 -map [psnr] -f null - \
 -map [stacked] -fps_mode vfr -c:v libx264 -crf 10 -f mp4 -movflags +faststart ${comparisonPath} \
@@ -608,8 +628,17 @@ const fixCrop = (c?: Record<string, string>) => {
 
 const cropFilter = (crop: Crop, exact = 0, suffix = '') => {
   const { w, h, x, y } = crop
-  if (!x && !w && !x && !y) return `crop${suffix}`
+  if (!x && !w && !x && !y) return ''
   return `crop=w=${w}:h=${h}:x=${x}:y=${y}:exact=${exact}${suffix}`
+}
+
+const splitFilter = (outputs: string[], suffix = '') => {
+  const out = outputs
+    .filter(o => !!o)
+    .map(o => `[${o}]`)
+    .join('')
+  if (!out) return ''
+  return `split=${outputs.length}${out}${suffix}`
 }
 
 type VmafConfig = {
