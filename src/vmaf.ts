@@ -34,7 +34,7 @@ export async function parseVideo(fpath: string) {
 
 /**
  * It prepares a video file for VMAF evaluation applying a timestamp video overlay.
- * @param name The input video file path with the ouput id (e.g `filename.flv,1`).
+ * @param name The input video file path with the output id (e.g `filename.flv,1`).
  * @param crop If the video should be cropped.
  * @param keepSourceFile If the source file should be kept.
  */
