@@ -8,7 +8,7 @@ webrtcperf.audioEndToEndDelayStats = new MeasuredStats({ ttl: 15 })
 
 webrtcperf.audioStartFrameDelayStats = new webrtcperf.MeasuredStats({ ttl: 60 })
 
-webrtcperf.audioStartFrameTime = 0
+webrtcperf.audioStartFrameTime = undefined
 
 /**
  * It sets the start frame time used for calculating the startFrameDelay metric.
@@ -23,6 +23,7 @@ window.collectAudioEndToEndStats = () => {
     delay: webrtcperf.audioEndToEndDelayStats.mean(),
     startFrameDelay:
       webrtcperf.videoStartFrameDelayStats.size &&
+      webrtcperf.audioStartFrameTime !== undefined &&
       webrtcperf.audioStartFrameDelayStats.mean() > webrtcperf.audioStartFrameTime
         ? webrtcperf.audioStartFrameDelayStats.mean() - webrtcperf.audioStartFrameTime
         : undefined,

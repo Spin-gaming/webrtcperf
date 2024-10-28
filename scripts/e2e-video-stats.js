@@ -8,7 +8,7 @@ webrtcperf.videoEndToEndDelayStats = new webrtcperf.MeasuredStats({ ttl: 15 })
 
 webrtcperf.videoStartFrameDelayStats = new webrtcperf.MeasuredStats({ ttl: 60 })
 
-webrtcperf.videoStartFrameTime = 0
+webrtcperf.videoStartFrameTime = undefined
 
 /**
  * It sets the start frame time used for calculating the startFrameDelay metric.
@@ -23,6 +23,7 @@ window.collectVideoEndToEndStats = () => {
     delay: webrtcperf.videoEndToEndDelayStats.mean(),
     startFrameDelay:
       webrtcperf.videoStartFrameDelayStats.size &&
+      webrtcperf.videoStartFrameTime !== undefined &&
       webrtcperf.videoStartFrameDelayStats.mean() > webrtcperf.videoStartFrameTime
         ? webrtcperf.videoStartFrameDelayStats.mean() - webrtcperf.videoStartFrameTime
         : undefined,
