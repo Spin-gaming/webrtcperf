@@ -483,7 +483,7 @@ ${cropFilter(crop.deg, 0, ',')}\
 ${splitFilter(['deg_scale', 'deg_vmaf', 'deg_psnr', preview ? 'deg_preview' : ''])};\
 [1:v]\
 ${cropFilter(crop.ref, 0)}[ref_scale];\
-[ref_scale][deg_scale]scale=w=rw:h=rh:flags=bilinear,\
+[ref_scale][deg_scale]scale=w=rw:h=rh:flags=bicubic,\
 ${splitFilter(['ref_vmaf', 'ref_psnr', preview ? 'ref_preview' : ''])};\
 [deg_vmaf][ref_vmaf]libvmaf=model='path=/usr/share/model/vmaf_v0.6.1.json':log_fmt=json:log_path=${vmafLogPath}:n_subsample=1:n_threads=${cpus}:shortest=1[vmaf];\
 [deg_psnr][ref_psnr]psnr=stats_file=${psnrLogPath}[psnr]\
