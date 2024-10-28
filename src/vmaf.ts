@@ -80,7 +80,7 @@ export async function convertToIvf(fpath: string, crop?: string, keepSourceFile 
   const filter = crop ? `-vf '${cropFilter(json5.parse(crop))}'` : ''
   await runShellCommand(
     `ffmpeg -y -hide_banner -y -loglevel warning -i ${fpath} -map 0:v \
-      -c:v vp8 -quality best -cpu-used 0 -crf 1 -b:v 20M -qmin 1 -qmax 1 \
+      -c:v vp8 -quality best -cpu-used 0 -crf 1 -b:v 20M -qmin 1 -qmax 10 \
       -g 1 -threads ${os.cpus().length} ${filter} -an \
       -f ivf ${outputPath}`,
     true,
@@ -111,7 +111,7 @@ export async function recognizeFrames(
   let firstTimestamp = 0
   let lastTimestamp = 0
   let participantDisplayName = ''
-  const regExp = /(?<name>[0-9]{1,6})-(?<time>[0-9]{3,13})/
+  const regExp = /(?<name>[0-9]{1,6})-(?<time>[0-9]{1,13})/
   await ffprobe(
     fpath,
     'video',
