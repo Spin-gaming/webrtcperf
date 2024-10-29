@@ -96,12 +96,7 @@ export async function convertToIvf(fpath: string, crop?: string, keepSourceFile 
  * @param crop If the video should be cropped.
  * @param debug Enable debug logging.
  */
-export async function recognizeFrames(
-  fpath: string,
-  recover = false,
-  crop = { top: 0, bottom: 0, left: 0, right: 0 },
-  debug = false,
-) {
+export async function recognizeFrames(fpath: string, recover = false, debug = false) {
   const { width, height, frameRate } = await parseVideo(fpath)
   const fname = path.basename(fpath)
   const frames = new Map<number, number>()
@@ -116,7 +111,7 @@ export async function recognizeFrames(
     fpath,
     'video',
     'frame=pts,frame_tags=lavfi.ocr.text,lavfi.ocr.confidence',
-    `crop=in_w-${crop.left}-${crop.right}:in_h-${crop.top}-${crop.bottom}:${crop.left}:${crop.top},crop=in_w:max((in_h/18)*1.2\\,24):0:0,ocr=whitelist=0123456789-`,
+    `crop=in_w:max((in_h/15)\\,32):0:0,ocr=whitelist=0123456789-`,
     frame => {
       const pts = parseInt(frame.pts)
       if ((!frames.has(pts) || !frames.get(pts)) && frameRate) {
@@ -433,7 +428,7 @@ export async function runVmaf(
     frames: degFrames,
   } = await parseIvf(degradedPath, false)
 
-  const textHeight = cropTimeOverlay ? '1.2*(ih/18)' : ''
+  const textHeight = cropTimeOverlay ? '(ih/15)' : ''
   if (textHeight) {
     crop.ref.h = `${crop.ref.h}-${textHeight}`
     crop.ref.y = `${crop.ref.y}+${textHeight}`
