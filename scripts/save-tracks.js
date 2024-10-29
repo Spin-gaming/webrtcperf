@@ -54,9 +54,12 @@ const saveFileWorkerFn = () => {
     const ws = await wsClient(url)
     websocketControllers.set(id, controller)
     if (kind === 'video') {
+      let currentWidth = 0
+      let currentHeight = 0
       let headerSent = false
       let startTimestamp = -1
       let lastPts = 0
+      let lastTimestamp = 0
       const header = new ArrayBuffer(12)
       const view = new DataView(header)
 
@@ -66,17 +69,19 @@ const saveFileWorkerFn = () => {
           try {
             const { byteLength, timestamp } = chunk
             if (!headerSent) {
-              writeIvfHeader(ws, width, height, frameRate, 1, 'VP80')
+              writeIvfHeader(ws, currentWidth, currentHeight, frameRate, 1, 'VP80')
               headerSent = true
             }
             if (startTimestamp === -1) {
               startTimestamp = timestamp
             }
-            const pts = Math.floor((frameRate * (timestamp - startTimestamp)) / 1000000)
-            if (pts <= lastPts) return
+            let pts = Math.round((frameRate * (timestamp - startTimestamp)) / 1000000)
+            if (pts <= lastPts) {
+              log(`skip pts: ${pts} <= ${lastPts} timestamp: ${timestamp} lastTimestamp: ${lastTimestamp}`)
+              return
+            }
             const data = new ArrayBuffer(byteLength)
             chunk.copyTo(data)
-
             view.setUint32(0, byteLength, true)
             view.setBigUint64(4, BigInt(pts), true)
             const buf = new Uint8Array(header.byteLength + byteLength)
@@ -84,44 +89,57 @@ const saveFileWorkerFn = () => {
             buf.set(new Uint8Array(data), header.byteLength)
             ws.send(buf)
             lastPts = pts
+            lastTimestamp = timestamp
           } catch (err) {
             log(`saveMediaTrack ${url} error=${err.message}`)
           }
         },
-        error: e => {
-          console.log(e.message)
-        },
+        error: e => log(`encoder error: ${e.message}`),
       })
-      encoder.configure({
-        codec: 'vp8',
-        width,
-        height,
-        bitrate: 20_000_000,
-        framerate: frameRate,
-        bitrateMode: 'variable',
-        latencyMode: 'quality',
-      })
+
+      const configureEncoder = (width, height) => {
+        log(`configureEncoder ${width}x${height}@${frameRate}`)
+        if (encoder?.state === 'configured') {
+          encoder.flush()
+          encoder.reset()
+        }
+        encoder.configure({
+          codec: 'vp8',
+          width,
+          height,
+          framerate: frameRate,
+          bitrate: 20_000_000,
+          bitrateMode: 'variable',
+          latencyMode: 'quality',
+        })
+        currentWidth = width
+        currentHeight = height
+      }
 
       const writableStream = new WritableStream(
         {
           async write(/** @type VideoFrame */ frame) {
-            const { codedWidth, codedHeight } = frame
+            const { codedWidth, codedHeight, timestamp, duration } = frame
             try {
+              log(`encode ${timestamp} ${duration} ${codedWidth}x${codedHeight} ${frame.format}`)
               if (!codedWidth || !codedHeight) return
-              if (x || y || width !== codedWidth || height !== codedHeight) {
-                const bitmap = await createImageBitmap(
-                  frame,
-                  x,
-                  y,
-                  Math.min(width, codedWidth),
-                  Math.min(height, codedHeight),
-                )
+              if (x || y || (width && width !== codedWidth) || (height && height !== codedHeight)) {
+                const w = Math.min(width, codedWidth)
+                const h = Math.min(height, codedHeight)
+                const rect = { x, y, width: w, height: h }
+                const buffer = new Uint8Array(frame.allocationSize({ rect, format: 'RGBA' }))
+                await frame.copyTo(buffer, { rect, format: 'RGBA' })
                 frame.close()
-                frame = new VideoFrame(bitmap, {
-                  timestamp: frame.timestamp,
-                  duration: frame.duration,
+                frame = new VideoFrame(buffer, {
+                  timestamp,
+                  duration,
+                  codedWidth: w,
+                  codedHeight: h,
+                  format: 'RGBA',
                 })
-                bitmap.close()
+              }
+              if (currentWidth !== frame.codedWidth || currentHeight !== frame.codedHeight) {
+                configureEncoder(frame.codedWidth, frame.codedHeight)
               }
               encoder.encode(frame, { keyFrame: true })
             } catch (err) {
@@ -132,16 +150,16 @@ const saveFileWorkerFn = () => {
           },
           close() {
             log(`saveTrack ${url} close`)
-            encoder.flush()
-            encoder.close()
+            encoder?.flush()
+            encoder?.close()
             ws.close()
             websocketControllers.delete(id)
             postMessage({ name: 'close', id, kind })
           },
           abort(reason) {
             log(`saveTrack ${url} abort reason:`, reason)
-            encoder.flush()
-            encoder.close()
+            encoder?.flush()
+            encoder?.close()
             ws.close()
             websocketControllers.delete(id)
             postMessage({ name: 'close', reason, id, kind })
@@ -215,8 +233,10 @@ const getSaveFileWorker = () => {
  * @param {Number} enableStart If greater than 0, the track is enabled after this time in milliseconds.
  * @param {Number} enableEnd If greater than 0, the track is disabled after this time in milliseconds.
  * @param {Number} quality The MJPEG video quality.
- * @param {Number} width The video width.
- * @param {Number} height The video height.
+ * @param {Number} x The video crop x.
+ * @param {Number} y The video crop y.
+ * @param {Number} width The video crop width.
+ * @param {Number} height The video crop height.
  * @param {Number} frameRate The video frame rate.
  */
 window.saveMediaTrack = async (
@@ -224,11 +244,10 @@ window.saveMediaTrack = async (
   sendrecv,
   enableStart = 0,
   enableEnd = 0,
-  quality = 0.7,
   x = 0,
   y = 0,
-  width = window.VIDEO_WIDTH,
-  height = window.VIDEO_HEIGHT,
+  width = 0,
+  height = 0,
   frameRate = window.VIDEO_FRAMERATE,
 ) => {
   const { id, kind } = track
@@ -263,7 +282,6 @@ window.saveMediaTrack = async (
       url,
       readable,
       kind,
-      quality,
       x,
       y,
       width,
