@@ -92,7 +92,7 @@ async function getPeerConnectionStats(id, pc, now, raw = false, verbose = false)
           outboundRtp: {},
         }
         if (track.kind === 'video') {
-          values.isDisplay = isSenderDisplayTrack(track)
+          values.isDisplay = webrtcperf.isSenderDisplayTrack(track)
           values.videoSentActiveEncodings = encodings.length
         }
         values.sentMaxBitrate = encodings.length
@@ -450,14 +450,16 @@ setInterval(() => {
  * @param {MediaStreamTrack} videoTrack
  * @return {Boolean}
  */
-const isSenderDisplayTrack = videoTrack => {
+webrtcperf.isSenderDisplayTrack = videoTrack => {
   if (['detail', 'text'].indexOf(videoTrack.contentHint) !== -1) {
     return true
   }
 
-  if (!navigator.mediaDevices) {
-    return false
+  if (videoTrack instanceof window.BrowserCaptureMediaStreamTrack) {
+    return true
   }
+
+  if (!navigator.mediaDevices) return false
 
   const trackSettings = videoTrack.getSettings()
   const trackConstraints = videoTrack.getConstraints()
@@ -476,8 +478,8 @@ const isSenderDisplayTrack = videoTrack => {
   }
 }
 
-window.isReceiverDisplayTrack = track => {
-  return isSenderDisplayTrack(track)
+webrtcperf.isReceiverDisplayTrack = track => {
+  return webrtcperf.isSenderDisplayTrack(track)
 }
 
 /**

@@ -377,8 +377,9 @@ webrtcperf.filterTransceiversTracks = (direction, kind) => {
   if (!['send', 'recv'].includes(direction)) {
     throw new Error(`Invalid direction: ${direction}`)
   }
-  if (!['audio', 'video'].includes(kind)) {
-    throw new Error(`Invalid kind: ${kind}`)
+  const trackKind = kind === 'screen' ? 'video' : kind
+  if (!['audio', 'video'].includes(trackKind)) {
+    throw new Error(`Invalid kind: ${trackKind}`)
   }
   const directionOption = direction === 'send' ? 'sender' : 'receiver'
   const tranceivers = []
@@ -386,7 +387,13 @@ webrtcperf.filterTransceiversTracks = (direction, kind) => {
     pc.getTransceivers().forEach(tranceiver => {
       if (!tranceiver.direction.includes(direction)) return
       const track = tranceiver[directionOption]?.track
-      if (track?.kind === kind && track?.label !== 'probator') {
+      if (track?.kind === trackKind && track?.label !== 'probator') {
+        if (
+          kind === 'video' &&
+          ((direction === 'send' && webrtcperf.isSenderDisplayTrack(track)) ||
+            (direction === 'recv' && webrtcperf.isReceiverDisplayTrack(track)))
+        )
+          return
         tranceivers.push({ tranceiver, track })
       }
     })

@@ -1,4 +1,4 @@
-/* global webrtcperf, log, loadScript, isSenderDisplayTrack, Tesseract, VideoFrame, createWorker */
+/* global webrtcperf, log, loadScript, Tesseract, VideoFrame, createWorker */
 
 /**
  * Video end-to-end delay stats.
@@ -44,7 +44,7 @@ const applyVideoTimestampWatermarkFn = () => {
     const fontSize = Math.round(canvas.height / 18)
     ctx.font = `${fontSize}px Noto Mono`
     ctx.textAlign = 'center'
-    const textHeight = Math.round(fontSize * 1.2)
+    const textHeight = Math.round(canvas.height / 15)
     const participantNameIndex = parseInt(participantName.split('-')[1]) || 0
 
     const transformer = new TransformStream({
@@ -62,13 +62,13 @@ const applyVideoTimestampWatermarkFn = () => {
 
         if (drawGrid) {
           ctx.beginPath()
-          for (let d = 0; d < width / 2; d += 25) {
+          for (let d = 0; d < height / 2; d += 25) {
             ctx.moveTo(0, textHeight + d)
             ctx.lineTo(width, textHeight + d)
             ctx.moveTo(0, height - d)
             ctx.lineTo(width, height - d)
           }
-          for (let d = 0; d < height / 2; d += 25) {
+          for (let d = 0; d < width / 2; d += 25) {
             ctx.moveTo(d, 0)
             ctx.lineTo(d, height)
             ctx.moveTo(width - d, 0)
@@ -127,7 +127,7 @@ webrtcperf.applyVideoTimestampWatermark = mediaStream => {
   }
 
   const { width, height, frameRate, aspectRatio } = videoTrack.getSettings()
-  const isDisplay = isSenderDisplayTrack(videoTrack)
+  const isDisplay = webrtcperf.isSenderDisplayTrack(videoTrack)
 
   let participantName = window.getParticipantName()
   if (participantName && isDisplay) {
