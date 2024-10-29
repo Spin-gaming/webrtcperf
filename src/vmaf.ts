@@ -111,7 +111,7 @@ export async function recognizeFrames(fpath: string, recover = false, debug = fa
     fpath,
     'video',
     'frame=pts,frame_tags=lavfi.ocr.text,lavfi.ocr.confidence',
-    `crop=in_w:max((in_h/15)\\,32):0:0,ocr=whitelist=0123456789-`,
+    `crop=w=in_w:h=max((in_h/15)\\,24):x=0:y=0,ocr=whitelist=0123456789-`,
     frame => {
       const pts = parseInt(frame.pts)
       if ((!frames.has(pts) || !frames.get(pts)) && frameRate) {
@@ -320,7 +320,7 @@ export async function fixIvfFiles(directory: string, keepSourceFiles = true) {
 
   const ivfFiles = await getFiles(directory, '.ivf')
   if (ivfFiles.length) {
-    log.info(`fixIvfFiles directory=${directory} ivfFiles=${ivfFiles}`)
+    log.debug(`using existing ${ivfFiles.length} ivf files`)
     for (const outFilePath of ivfFiles) {
       try {
         const participantDisplayName = path.basename(outFilePath).replace('.ivf', '').split('_')[0]
@@ -333,7 +333,7 @@ export async function fixIvfFiles(directory: string, keepSourceFiles = true) {
 
   const rawFiles = await getFiles(directory, '.ivf.raw')
   if (rawFiles.length) {
-    log.info(`fixIvfFiles directory=${directory} files=${rawFiles}`)
+    log.debug(`processing ${rawFiles.length} raw ivf files`)
     const results = await chunkedPromiseAll<
       string,
       { participantDisplayName: string; outFilePath: string } | undefined
@@ -415,12 +415,7 @@ export async function runVmaf(
   const sender = path.basename(referencePath).replace('.ivf', '')
   const receiver = path.basename(degradedPath).replace('.ivf', '').split('_recv-by_')[1]
 
-  const {
-    width: refWidth,
-    height: refHeight,
-    frameRate: refFrameRate,
-    frames: refFrames,
-  } = await parseIvf(referencePath, false)
+  const { frameRate: refFrameRate, frames: refFrames } = await parseIvf(referencePath, false)
   const {
     width: degWidth,
     height: degHeight,
@@ -435,15 +430,6 @@ export async function runVmaf(
 
     crop.deg.h = `${crop.deg.h}-${textHeight}`
     crop.deg.y = `${crop.deg.y}+${textHeight}`
-  }
-
-  // Adjust the reference aspect ratio to match the degraded one.
-  const refAspectRatio = refWidth / refHeight
-  const degAspectRatio = degWidth / degHeight
-  if (refAspectRatio > degAspectRatio) {
-    const diff = `(iw-${refHeight}*${degWidth}/${degHeight})`
-    crop.ref.w = `${crop.ref.w}-${diff}`
-    crop.ref.x = `${crop.ref.x}+${diff}/2`
   }
 
   if (refFrameRate !== degFrameRate) {
@@ -475,10 +461,10 @@ export async function runVmaf(
   const filter = `\
 [0:v]\
 ${cropFilter(crop.deg, 0, ',')}\
-${splitFilter(['deg_scale', 'deg_vmaf', 'deg_psnr', preview ? 'deg_preview' : ''])};\
+${splitFilter(['deg_vmaf', 'deg_psnr', preview ? 'deg_preview' : ''])};\
 [1:v]\
-${cropFilter(crop.ref, 0)}[ref_scale];\
-[ref_scale][deg_scale]scale=w=rw:h=rh:flags=bicubic,\
+scale=w=-1:h=${degHeight}:flags=bicubic,crop=w=${degWidth}:x=(iw-${degWidth})/2,\
+${cropFilter(crop.ref, 0, ',')}\
 ${splitFilter(['ref_vmaf', 'ref_psnr', preview ? 'ref_preview' : ''])};\
 [deg_vmaf][ref_vmaf]libvmaf=model='path=/usr/share/model/vmaf_v0.6.1.json':log_fmt=json:log_path=${vmafLogPath}:n_subsample=1:n_threads=${cpus}:shortest=1[vmaf];\
 [deg_psnr][ref_psnr]psnr=stats_file=${psnrLogPath}[psnr]\
@@ -699,8 +685,8 @@ if (require.main === module) {
           vmafKeepSourceFiles: true,
           vmafCrop: json5.stringify({
             'Participant-000001_recv-by_Participant-000000': {
-              deg: { w: '', h: '', x: '', y: '' },
               ref: { w: '', h: '', x: '', y: '' },
+              deg: { w: '', h: '', x: '', y: '' },
             },
           }),
         })
