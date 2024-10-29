@@ -62,17 +62,13 @@ const applyVideoTimestampWatermarkFn = () => {
 
         if (drawGrid) {
           ctx.beginPath()
-          for (let d = 0; d < height / 2; d += 25) {
+          for (let d = 0; d < height; d += 25) {
             ctx.moveTo(0, textHeight + d)
             ctx.lineTo(width, textHeight + d)
-            ctx.moveTo(0, height - d)
-            ctx.lineTo(width, height - d)
           }
-          for (let d = 0; d < width / 2; d += 25) {
+          for (let d = 0; d < width; d += 25) {
             ctx.moveTo(d, 0)
             ctx.lineTo(d, height)
-            ctx.moveTo(width - d, 0)
-            ctx.lineTo(width - d, height)
           }
           ctx.strokeStyle = 'black'
           ctx.stroke()
@@ -161,6 +157,7 @@ webrtcperf.applyVideoTimestampWatermark = mediaStream => {
       width,
       height,
       participantName,
+      drawGrid: window.PARAMS?.drawWatermarkGrid,
     },
     [readable, writable],
   )
