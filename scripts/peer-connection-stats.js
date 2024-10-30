@@ -275,7 +275,7 @@ async function getPeerConnectionStats(id, pc, now, raw = false, verbose = false)
           inboundRtp: {},
         }
         if (track.kind === 'video') {
-          values.isDisplay = window.isReceiverDisplayTrack(track)
+          values.isDisplay = webrtcperf.isReceiverDisplayTrack(track)
         }
         for (const s of stats.values()) {
           if (raw) {
