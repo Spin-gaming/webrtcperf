@@ -51,8 +51,6 @@ export enum PageStatsNames {
 
   /** The page total HTTP received bytes. */
   httpRecvBytes = 'httpRecvBytes',
-  /** The page HTTP receive bitrate. */
-  httpRecvBitrate = 'httpRecvBitrate',
   /** The page HTTP receive latency. */
   httpRecvLatency = 'httpRecvLatency',
 

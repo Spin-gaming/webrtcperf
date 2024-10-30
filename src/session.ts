@@ -28,6 +28,7 @@ import * as sdpTransform from 'sdp-transform'
 import { gunzipSync } from 'zlib'
 
 import { rtcStatKey, RtcStats, updateRtcStats } from './rtcstats'
+import { FastStats } from './stats'
 import {
   checkChromeExecutable,
   downloadUrl,
@@ -80,11 +81,6 @@ declare global {
     startFrameDelay: number
   }
   let collectVideoEndToEndNetworkDelayStats: () => number
-  let collectHttpResourcesStats: () => {
-    recvBytes: number
-    recvBitrate: number
-    recvLatency: number
-  }
   let collectCpuPressure: () => number
   let collectCustomMetrics: () => Promise<Record<string, number | string>>
   let getParticipantName: () => string
@@ -310,6 +306,7 @@ export class Session extends EventEmitter {
   stats: SessionStats = {}
   /** The browser opened pages. */
   readonly pages = new Map<number, Page>()
+  readonly httpResourcesStats = new Map<number, { recvBytes: number; recvLatency: FastStats }>()
   /** The browser opened pages metrics. */
   readonly pagesMetrics = new Map<number, Metrics>()
   /** The page warnings count. */
@@ -920,7 +917,6 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
       'scripts/e2e-audio-stats.js',
       'scripts/e2e-video-stats.js',
       'scripts/playout-delay-hint.js',
-      'scripts/page-stats.js',
       'scripts/save-tracks.js',
       'scripts/pressure-stats.js',
     ]) {
@@ -989,6 +985,7 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
     page.once('close', () => {
       log.debug(`page ${index + 1} closed`)
       this.pages.delete(index)
+      this.httpResourcesStats.delete(index)
       this.pagesMetrics.delete(index)
 
       if (saveFile) {
@@ -1053,6 +1050,7 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
       interceptions.push({
         urlPattern: url,
         modifyResponse: async ({ event, body }) => {
+          const responseHeaders = event.responseHeaders || []
           for (const { search, replace, file, headers } of replacements) {
             if (search && replace) {
               log.debug(`using responseModifiers in: ${event.request.url}: ${search.toString()} => ${replace}`)
@@ -1063,14 +1061,14 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
             }
             if (headers) {
               for (const [name, value] of Object.entries(headers)) {
-                event.responseHeaders?.push({
+                responseHeaders.push({
                   name,
                   value,
                 })
               }
             }
           }
-          return { body }
+          return { body, responseHeaders }
         },
       })
     })
@@ -1347,12 +1345,44 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
 
     await page.exposeFunction('WebRtcPerf_sdpWrite', (sdp: sdpTransform.SessionDescription) => sdpTransform.write(sdp))
 
-    /* page.on('workercreated', worker =>
-      log.debug(`Worker created: ${worker.url()}`),
-    )
-    page.on('workerdestroyed', worker =>
-      log.debug(`Worker created: ${worker.url()}`),
-    ) */
+    // HTTP stats.
+    const resourcesStats = {
+      recvBytes: 0,
+      recvLatency: new FastStats({ store_data: false }),
+    }
+    this.httpResourcesStats.set(index, resourcesStats)
+
+    const pendingRequests = new Map<string, { timestamp: number }>()
+    pageCDPSession.on('Network.requestWillBeSent', event => {
+      if (event.request.url.startsWith('data:')) return
+      const { requestId, timestamp } = event
+      pendingRequests.set(requestId, { timestamp })
+    })
+
+    pageCDPSession.on('Network.responseReceived', event => {
+      const request = pendingRequests.get(event.requestId)
+      if (!request) return
+      const { response } = event
+      if (response.fromDiskCache) {
+        pendingRequests.delete(event.requestId)
+        return
+      }
+      resourcesStats.recvBytes += response.encodedDataLength
+    })
+
+    pageCDPSession.on('Network.dataReceived', event => {
+      const request = pendingRequests.get(event.requestId)
+      if (!request) return
+      resourcesStats.recvBytes += event.encodedDataLength
+    })
+
+    pageCDPSession.on('Network.loadingFinished', event => {
+      const request = pendingRequests.get(event.requestId)
+      if (!request) return
+      pendingRequests.delete(event.requestId)
+      const { timestamp } = event
+      resourcesStats.recvLatency.push(timestamp - request.timestamp)
+    })
 
     // open the page url
     try {
@@ -1486,7 +1516,6 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
     const videoStartFrameDelayStats: Record<string, number> = {}
     const videoEndToEndNetworkDelayStats: Record<string, number> = {}
     const httpRecvBytesStats: Record<string, number> = {}
-    const httpRecvBitrateStats: Record<string, number> = {}
     const httpRecvLatencyStats: Record<string, number> = {}
     const pageCpu: Record<string, number> = {}
     const pageMemory: Record<string, number> = {}
@@ -1512,7 +1541,6 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
             audioEndToEndDelay,
             videoEndToEndDelay,
             videoEndToEndNetworkDelay,
-            httpResourcesStats,
             cpuPressure,
             customMetrics,
           } = await page.evaluate(async () => ({
@@ -1520,11 +1548,12 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
             audioEndToEndDelay: collectAudioEndToEndStats(),
             videoEndToEndDelay: collectVideoEndToEndStats(),
             videoEndToEndNetworkDelay: collectVideoEndToEndNetworkDelayStats(),
-            httpResourcesStats: collectHttpResourcesStats(),
             cpuPressure: collectCpuPressure(),
             customMetrics: 'collectCustomMetrics' in window ? collectCustomMetrics() : null,
           }))
           const { participantName } = peerConnectionStats
+
+          const httpResourcesStats = this.httpResourcesStats.get(pageIndex)
 
           // Get host from the first collected remote address.
           if (!peerConnectionStats.signalingHost && peerConnectionStats.stats.length) {
@@ -1573,11 +1602,11 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
           }
 
           // HTTP stats.
-          if (httpResourcesStats.recvBytes !== undefined) httpRecvBytesStats[pageKey] = httpResourcesStats.recvBytes
-          if (httpResourcesStats.recvBitrate !== undefined)
-            httpRecvBitrateStats[pageKey] = httpResourcesStats.recvBitrate
-          if (httpResourcesStats.recvLatency !== undefined)
-            httpRecvLatencyStats[pageKey] = httpResourcesStats.recvLatency
+          if (httpResourcesStats) {
+            if (httpResourcesStats.recvBytes > 0) httpRecvBytesStats[pageKey] = httpResourcesStats.recvBytes
+            if (httpResourcesStats.recvLatency.length)
+              httpRecvLatencyStats[pageKey] = httpResourcesStats.recvLatency.amean()
+          }
 
           if (cpuPressure !== undefined) cpuPressureStats[pageKey] = cpuPressure
 
@@ -1667,7 +1696,6 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
     collectedStats.videoStartFrameDelay = videoStartFrameDelayStats
     collectedStats.videoEndToEndNetworkDelay = videoEndToEndNetworkDelayStats
     collectedStats.httpRecvBytes = httpRecvBytesStats
-    collectedStats.httpRecvBitrate = httpRecvBitrateStats
     collectedStats.httpRecvLatency = httpRecvLatencyStats
     collectedStats.cpuPressure = cpuPressureStats
     collectedStats.pageCpu = pageCpu

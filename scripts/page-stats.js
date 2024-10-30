@@ -1,6 +1,5 @@
 /* global webrtcperf */
 
-// Page performance
 webrtcperf.httpBitrateStats = new webrtcperf.MeasuredStats({ ttl: 30 })
 webrtcperf.httpLatencyStats = new webrtcperf.MeasuredStats({ ttl: 30 })
 
@@ -17,18 +16,11 @@ window.collectHttpResourcesStats = () => {
 }
 
 if (typeof window.PerformanceObserver === 'function') {
-  // Stop ServiceWorkers.
-  /* navigator.serviceWorker.addEventListener('controllerchange', () => {
-    webrtcperf.unregisterServiceWorkers()
-  })
-  webrtcperf.unregisterServiceWorkers() */
-
   // https://nicj.net/resourcetiming-in-practice/
   const processEntries = entries => {
     const timestamp = Date.now()
     entries
       .filter(entry => {
-        // webrtcperf.log(`entry`, entry)
         const { duration, transferSize } = entry
         // Filter cached entries.
         if (!transferSize || duration < 10) {
@@ -44,5 +36,5 @@ if (typeof window.PerformanceObserver === 'function') {
       })
   }
   const observer = new PerformanceObserver(list => processEntries(list.getEntries()))
-  observer.observe({ type: 'resource', buffered: true })
+  observer.observe({ entryTypes: ['resource', 'navigation'], buffered: true })
 }
