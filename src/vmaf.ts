@@ -1,10 +1,10 @@
 import fs from 'fs'
 import json5 from 'json5'
-import os from 'os'
 import path from 'path'
+import os from 'os'
 
+import { FFProbeProcess, analyzeColors, chunkedPromiseAll, ffprobe, getFiles, logger, runShellCommand } from './utils'
 import { FastStats } from './stats'
-import { analyzeColors, chunkedPromiseAll, ffprobe, FFProbeProcess, getFiles, logger, runShellCommand } from './utils'
 
 const log = logger('webrtcperf:vmaf')
 

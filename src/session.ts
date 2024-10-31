@@ -20,16 +20,18 @@ import puppeteer, {
   Permission,
 } from 'puppeteer-core'
 import {
-  getUrlPatternRegExp,
   type Interception,
   RequestInterceptionManager,
+  getUrlPatternRegExp,
 } from 'puppeteer-intercept-and-modify-requests'
 import * as sdpTransform from 'sdp-transform'
 import { gunzipSync } from 'zlib'
 
-import { rtcStatKey, RtcStats, updateRtcStats } from './rtcstats'
+import { RtcStats, rtcStatKey, updateRtcStats } from './rtcstats'
 import { FastStats } from './stats'
 import {
+  PeerConnectionExternal,
+  PeerConnectionExternalMethod,
   checkChromeExecutable,
   downloadUrl,
   enabledForSession,
@@ -38,8 +40,6 @@ import {
   hideAuth,
   increaseKey,
   logger,
-  PeerConnectionExternal,
-  PeerConnectionExternalMethod,
   portForwarder,
   resolveIP,
   resolvePackagePath,

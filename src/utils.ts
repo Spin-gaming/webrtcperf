@@ -5,12 +5,12 @@ import {
   getVersionComparator,
   install,
 } from '@puppeteer/browsers'
-import axios from 'axios'
 import { spawn } from 'child_process'
+import axios from 'axios'
 import { createHash } from 'crypto'
 import * as dns from 'dns'
 import FormData from 'form-data'
-import fs, { createWriteStream, WriteStream } from 'fs'
+import fs, { WriteStream, createWriteStream } from 'fs'
 import { Agent } from 'https'
 import * as ipaddrJs from 'ipaddr.js'
 import net from 'net'

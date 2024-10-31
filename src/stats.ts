@@ -12,9 +12,9 @@ import { PrometheusContentType } from 'prom-client'
 import { sprintf } from 'sprintf-js'
 import * as zlib from 'zlib'
 
-import { PageStatsNames, parseRtStatKey, RtcStatsMetricNames } from './rtcstats'
+import { PageStatsNames, RtcStatsMetricNames, parseRtStatKey } from './rtcstats'
 import { Session } from './session'
-import { hideAuth, logger, Scheduler, toPrecision } from './utils'
+import { Scheduler, hideAuth, logger, toPrecision } from './utils'
 
 export { FastStats }
 

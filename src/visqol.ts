@@ -1,7 +1,6 @@
+import { getFiles, logger, runShellCommand } from './utils'
 import fs from 'fs'
 import path from 'path'
-
-import { getFiles, logger, runShellCommand } from './utils'
 
 const log = logger('webrtcperf:visqol')
 
