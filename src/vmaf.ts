@@ -111,7 +111,7 @@ export async function recognizeFrames(fpath: string, recover = false, debug = fa
     fpath,
     'video',
     'frame=pts,frame_tags=lavfi.ocr.text,lavfi.ocr.confidence',
-    `crop=w=in_w:h=max((in_h/15)\\,24):x=0:y=0,ocr=whitelist=0123456789-`,
+    `crop=w=min(iw\\,ih):h=max((ih/15)\\,32):x=(iw-ow)/2:y=0:exact=1,ocr=whitelist=0123456789-`,
     frame => {
       const pts = parseInt(frame.pts)
       if ((!frames.has(pts) || !frames.get(pts)) && frameRate) {
