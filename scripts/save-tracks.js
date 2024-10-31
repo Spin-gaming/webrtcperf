@@ -1,4 +1,4 @@
-/* global webrtcperf, log, getParticipantNameForSave, createWorker, VideoFrame, VideoEncoder */
+/* global webrtcperf, log, getParticipantNameForSave, createWorker */
 
 const saveFileWorkerFn = () => {
   const log = (...args) => {

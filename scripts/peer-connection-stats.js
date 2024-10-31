@@ -10,7 +10,7 @@ window.isRecvTrackEnabled = track => {
 
 const filterUndefined = o =>
   Object.fromEntries(
-    // eslint-disable-next-line no-unused-vars
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     Object.entries(o).filter(([_, v]) => typeof v === 'string' || isFinite(v)),
   )
 

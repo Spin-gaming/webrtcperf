@@ -197,7 +197,7 @@ if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
     const mediaStream = await nativeGetDisplayMedia(constraints, ...args)
     await applyGetDisplayMediaCrop(mediaStream)
     collectMediaTracks(mediaStream, () => {
-      stopFakeScreenshare && stopFakeScreenshare()
+      if (stopFakeScreenshare) stopFakeScreenshare()
     })
     return mediaStream
   }

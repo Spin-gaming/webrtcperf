@@ -15,7 +15,7 @@ webrtcperf.safeStringify = obj => {
       return obj.toString()
     }
     return ret
-  } catch (err) {
+  } catch {
     return obj.toString()
   } finally {
     values.clear()

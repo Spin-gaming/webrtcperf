@@ -37,7 +37,6 @@ ${wrap(value.doc, { width: 72, indent: '        ' })}
     console.log(out)
     process.exit(0)
   } else if (process.argv.findIndex(a => a.localeCompare('--version') === 0) !== -1) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const version = json5.parse(fs.readFileSync(resolvePackagePath('package.json')).toString()).version
     console.log(version)
     process.exit(0)

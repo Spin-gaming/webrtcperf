@@ -4,7 +4,7 @@ import { existsSync } from 'fs'
 import os from 'os'
 import { join } from 'path'
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const puppeteer = require('puppeteer-core')
 
 import { logger } from './utils'
@@ -24,13 +24,13 @@ const index = {
   validate: (v: boolean | string | number) => {
     if (typeof v === 'string') {
       if (v === 'true' || v === 'false' || v === '') return
-      if (v.indexOf('-') !== -1) {
+      if (v.includes('-')) {
         v.split('-').forEach(n => {
           if (isNaN(parseInt(n)) || !isFinite(parseInt(n))) throw new Error(`Invalid index: ${n}`)
         })
         return
       }
-      if (v.indexOf(',') !== -1) {
+      if (v.includes(',')) {
         v.split(',').forEach(n => {
           if (isNaN(parseInt(n)) || !isFinite(parseInt(n))) throw new Error(`Invalid index: ${n}`)
         })
@@ -814,13 +814,11 @@ function formatDocs(
   }
 
   if (property) {
-    docs[property] =
-      // eslint-disable-line no-param-reassign
-      {
-        doc: schema.doc,
-        format: JSON.stringify(schema.format, null, 2),
-        default: JSON.stringify(schema.default, null, 2),
-      }
+    docs[property] = {
+      doc: schema.doc,
+      format: JSON.stringify(schema.format, null, 2),
+      default: JSON.stringify(schema.default, null, 2),
+    }
   }
   return docs
 }
@@ -832,10 +830,10 @@ export function getConfigDocs(): ConfigDocs {
   return formatDocs({}, null, configSchema.getSchema())
 }
 
-const schemaProperties = configSchema.getProperties()
+const _schemaProperties = configSchema.getProperties()
 
 /** [[include:config.md]] */
-export type Config = typeof schemaProperties
+export type Config = typeof _schemaProperties
 
 /**
  * Loads the config object.

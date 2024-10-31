@@ -72,7 +72,7 @@ function formatStatsColumns(column: string): string[] {
 }
 
 /** The Stats data collected for each metric. */
-type StatsData = {
+interface StatsData {
   /** The total samples collected. */
   length: number
   /** The sum of all the samples. */
@@ -93,14 +93,14 @@ type StatsData = {
 
 type StatsDataKey = keyof StatsData
 
-export type CollectedStats = {
+export interface CollectedStats {
   all: FastStats
   byHost: Record<string, FastStats>
   byCodec: Record<string, FastStats>
   byParticipantAndTrack: Record<string, number>
 }
 
-export type CollectedStatsRaw = {
+export interface CollectedStatsRaw {
   all: number[]
   byHost: Record<string, number[]>
   byCodec: Record<string, number[]>
@@ -182,7 +182,7 @@ function sprintfStats(
   scale = 1,
   hideSum = false,
 ): string {
-  if (!stats || !stats.all.length) {
+  if (!stats?.all.length) {
     return ''
   }
   if (!scale) {
@@ -255,7 +255,7 @@ export type AlertRule = AlertRuleOption & AlertRuleKey
 /**
  * The alert rule options.
  */
-export type AlertRuleOption = {
+export interface AlertRuleOption {
   /** The alert results will be grouped into the specified categories.  */
   tags: string[]
   /** The alert will pass when at least `failPercentile` of the checks (95 by default) are successful. */
@@ -265,7 +265,7 @@ export type AlertRuleOption = {
 /**
  * The supported alert rule checks.
  */
-export type AlertRuleKey = {
+export interface AlertRuleKey {
   /** The total collected samples. */
   length?: AlertRuleValue | AlertRuleValue[]
   /** The sum of the collected samples. */
@@ -283,7 +283,7 @@ export type AlertRuleKey = {
 /**
  * The alert check operators.
  */
-export type AlertRuleValue = {
+export interface AlertRuleValue {
   $eq?: number
   $gt?: number
   $lt?: number
@@ -330,7 +330,6 @@ export class Stats extends events.EventEmitter {
   detailedStatsWriter: StatsWriter | null
   private scheduler?: Scheduler
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private alertRules: Record<string, AlertRule> | null = null
   readonly alertRulesFilename: string
   private readonly alertRulesFailPercentile: number
@@ -357,8 +356,9 @@ export class Stats extends events.EventEmitter {
 
   /* metricConfigGauge: promClient.Gauge<string> | null = null */
   private elapsedTimeMetric: promClient.Gauge<string> | null = null
-  private metrics: {
-    [name: string]: {
+  private metrics: Record<
+    string,
+    {
       length: promClient.Gauge<string>
       sum: promClient.Gauge<string>
       mean: promClient.Gauge<string>
@@ -368,15 +368,16 @@ export class Stats extends events.EventEmitter {
       min: promClient.Gauge<string>
       max: promClient.Gauge<string>
       value?: promClient.Gauge<string>
-      alertRules: {
-        [name: string]: {
+      alertRules: Record<
+        string,
+        {
           report: promClient.Gauge<string>
           rule: promClient.Gauge<string>
           mean: promClient.Gauge<string>
         }
-      }
+      >
     }
-  } = {}
+  > = {}
 
   private alertTagsMetrics?: promClient.Gauge<string>
   private readonly customMetricsLabels: Record<string, string | undefined>
@@ -801,9 +802,9 @@ export class Stats extends events.EventEmitter {
       stats.byParticipantAndTrack = {}
     })
     for (const session of this.sessions.values()) {
-      this.collectedStatsConfig.url = `${hideAuth(session.url)}?${session.urlQuery}` || ''
+      this.collectedStatsConfig.url = `${hideAuth(session.url)}?${session.urlQuery}`
       this.collectedStatsConfig.pages += session.pages.size || 0
-      const sessionStats = await session.updateStats(now)
+      const sessionStats = await session.updateStats()
       for (const [name, obj] of Object.entries(sessionStats)) {
         if (obj === undefined) {
           return
@@ -817,17 +818,17 @@ export class Stats extends events.EventEmitter {
             for (const [key, value] of Object.entries(obj)) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               if (typeof value === 'number' && isFinite(value as any)) {
-                collectedStats.all.push(value as number)
+                collectedStats.all.push(value)
                 // Push host label.
                 const { trackId, hostName, participantName } = parseRtStatKey(key)
                 let stats = collectedStats.byHost[hostName]
                 if (!stats) {
                   stats = collectedStats.byHost[hostName] = new FastStats()
                 }
-                stats.push(value as number)
+                stats.push(value)
                 // Push participant and track values.
                 if (this.enableDetailedStats && participantName) {
-                  collectedStats.byParticipantAndTrack[`${participantName}:${trackId || ''}`] = value as number
+                  collectedStats.byParticipantAndTrack[`${participantName}:${trackId || ''}`] = value
                 }
               } else if (typeof value === 'string') {
                 // Codec stats.
@@ -1466,7 +1467,7 @@ export class Stats extends events.EventEmitter {
       return ''
     }
     // Update tags values.
-    const alertRulesReportTags = this.getAlertRulesTags() as Map<string, FastStats>
+    const alertRulesReportTags = this.getAlertRulesTags()!
     // JSON output.
     if (ext === 'json') {
       const out = {
@@ -1496,7 +1497,7 @@ export class Stats extends events.EventEmitter {
               totalFailsTimePerc,
               failAmount: failAmountPercentile,
               count: failAmountStats.length,
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
               // failAmountStats: (failAmountStats as any).data as number[],
             }
           }
@@ -1521,8 +1522,9 @@ export class Stats extends events.EventEmitter {
       }
     }
     if (ext) {
-      // eslint-disable-next-line
-      out += sprintf(`| %(check)-${colSize}s | %(total)-10s | %(totalFailsTime)-15s | %(totalFailsTimePerc)-15s | %(failAmount)-15s |\n`, {
+      out += sprintf(
+        `| %(check)-${colSize}s | %(total)-10s | %(totalFailsTime)-15s | %(totalFailsTimePerc)-15s | %(failAmount)-15s |\n`,
+        {
           check: 'Condition',
           total: 'Fails',
           totalFailsTime: 'Fail time (s)',
@@ -1531,8 +1533,9 @@ export class Stats extends events.EventEmitter {
         },
       )
     } else {
-      // eslint-disable-next-line
-      out += sprintf(chalk`{bold %(check)-${colSize}s} {bold %(total)-10s} {bold %(totalFailsTime)-15s} {bold %(totalFailsTimePerc)-15s} {bold %(failAmount)-15s}\n`, {
+      out += sprintf(
+        chalk`{bold %(check)-${colSize}s} {bold %(total)-10s} {bold %(totalFailsTime)-15s} {bold %(totalFailsTimePerc)-15s} {bold %(failAmount)-15s}\n`,
+        {
           check: 'Condition',
           total: 'Fails',
           totalFailsTime: 'Fail time (s)',
@@ -1546,8 +1549,9 @@ export class Stats extends events.EventEmitter {
         const { totalFails, totalFailsTime, failAmountPercentile, totalFailsTimePerc } = reportValue
         if (totalFails && totalFailsTimePerc > 0) {
           if (ext) {
-            // eslint-disable-next-line
-            out += sprintf(`| %(check)-${colSize}s | %(totalFails)-10s | %(totalFailsTime)-15s | %(totalFailsTimePerc)-15s | %(failAmountPercentile)-15s |\n`, {
+            out += sprintf(
+              `| %(check)-${colSize}s | %(totalFails)-10s | %(totalFailsTime)-15s | %(totalFailsTimePerc)-15s | %(failAmountPercentile)-15s |\n`,
+              {
                 check: `${key} ${reportDesc}`,
                 totalFails,
                 totalFailsTime: Math.round(totalFailsTime),
@@ -1556,8 +1560,9 @@ export class Stats extends events.EventEmitter {
               },
             )
           } else {
-            // eslint-disable-next-line
-            out += sprintf(chalk`{red {bold %(check)-${colSize}s}} {bold %(totalFails)-10s} {bold %(totalFailsTime)-15s} {bold %(totalFailsTimePerc)-15s} {bold %(failAmountPercentile)-15s}\n`, {
+            out += sprintf(
+              chalk`{red {bold %(check)-${colSize}s}} {bold %(totalFails)-10s} {bold %(totalFailsTime)-15s} {bold %(totalFailsTimePerc)-15s} {bold %(failAmountPercentile)-15s}\n`,
+              {
                 check: `${key} ${reportDesc}`,
                 totalFails,
                 totalFailsTime: Math.round(totalFailsTime),
@@ -1572,14 +1577,14 @@ export class Stats extends events.EventEmitter {
     // Tags report.
     if (ext) {
       out += sprintf(`%(fill)s\n`, { fill: '-'.repeat(colSize + 15 + 7) })
-      // eslint-disable-next-line
+
       out += sprintf(`| %(name)-${colSize}s | %(failPerc)-15s |\n`, {
         name: 'Tag',
         failPerc: 'Fail %',
       })
     } else {
       out += sprintf(`%(fill)s\n`, { fill: '-'.repeat(colSize + 15) })
-      // eslint-disable-next-line
+
       out += sprintf(chalk`{bold %(name)-${colSize}s} {bold %(failPerc)-15s}\n`, {
         name: 'Tag',
         failPerc: 'Fail %',
@@ -1588,14 +1593,13 @@ export class Stats extends events.EventEmitter {
     for (const [tag, stat] of alertRulesReportTags.entries()) {
       const failPerc = calculateFailAmountPercentile(stat, this.alertRulesFailPercentile)
       if (ext) {
-        // eslint-disable-next-line
         out += sprintf(`| %(tag)-${colSize}s | %(failPerc)-15s |\n`, {
           tag,
           failPerc,
         })
       } else {
         const color = failPerc < 5 ? 'green' : failPerc < 25 ? 'yellowBright' : failPerc < 50 ? 'yellow' : 'red'
-        // eslint-disable-next-line
+
         out += sprintf(chalk`{${color} {bold %(tag)-${colSize}s %(failPerc)-15s}}\n`, {
           tag,
           failPerc,

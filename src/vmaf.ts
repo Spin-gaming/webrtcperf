@@ -8,7 +8,7 @@ import { analyzeColors, chunkedPromiseAll, ffprobe, FFProbeProcess, getFiles, lo
 
 const log = logger('webrtcperf:vmaf')
 
-export type IvfFrame = {
+export interface IvfFrame {
   index: number
   position: number
   size: number
@@ -116,21 +116,22 @@ export async function recognizeFrames(fpath: string, recover = false, debug = fa
       const pts = parseInt(frame.pts)
       if ((!frames.has(pts) || !frames.get(pts)) && frameRate) {
         const confidence = parseFloat(frame.tag_lavfi_ocr_confidence?.trim() || '0')
-        const textMatch = (frame.tag_lavfi_ocr_text?.trim() || '').match(regExp)
+        const textMatch = regExp.exec(frame.tag_lavfi_ocr_text?.trim() || '')
         if (confidence > 50 && textMatch) {
           const { name, time } = textMatch.groups as { name: string; time: string }
           participantDisplayName = `Participant-${name.padStart(6, '0')}`
           const recognizedTime = parseInt(time)
           const recognizedPts = Math.round((frameRate * recognizedTime) / 1000)
-          debug &&
+          if (debug) {
             log.debug(
               `recognized frame ${fname} confidence=${confidence} pts=${pts} name=${name} time=${time} recognized=${recognizedPts}`,
             )
+          }
           frames.set(pts, recognizedPts)
           if (!firstTimestamp) firstTimestamp = recognizedPts / frameRate
           lastTimestamp = recognizedPts / frameRate
         } else {
-          recover && frames.set(pts, 0)
+          if (recover) frames.set(pts, 0)
           failed++
         }
       } else {
@@ -384,7 +385,7 @@ async function filterIvfFrames(fpath: string, frames: IvfFrame[]) {
   return outFilePath
 }
 
-export type VmafScore = {
+export interface VmafScore {
   sender: string
   receiver: string
   min: number
@@ -486,6 +487,7 @@ ${splitFilter(['ref_vmaf', 'ref_psnr', preview ? 'ref_preview' : ''])};\
   log.debug('runVmaf', cmd)
   try {
     const { stdout, stderr } = await runShellCommand(cmd)
+
     const vmafLog = JSON.parse(await fs.promises.readFile(vmafLogPath, 'utf-8'))
     log.debug('runVmaf', {
       stdout,
@@ -494,7 +496,8 @@ ${splitFilter(['ref_vmaf', 'ref_psnr', preview ? 'ref_preview' : ''])};\
     const metrics = {
       sender,
       receiver,
-      ...vmafLog['pooled_metrics']['vmaf'],
+
+      ...vmafLog.pooled_metrics.vmaf,
     } as VmafScore
 
     log.info(`VMAF metrics ${vmafLogPath}:`, metrics)
@@ -509,14 +512,14 @@ ${splitFilter(['ref_vmaf', 'ref_psnr', preview ? 'ref_preview' : ''])};\
 }
 
 async function writeGraph(vmafLogPath: string, frameRate: number) {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { ChartJSNodeCanvas } = require('chartjs-node-canvas')
 
   const vmafLog = JSON.parse(await fs.promises.readFile(vmafLogPath, 'utf-8')) as {
-    frames: Array<{
+    frames: {
       frameNum: number
       metrics: { vmaf: number }
-    }>
+    }[]
     pooled_metrics: {
       vmaf: { min: number; max: number; mean: number; harmonic_mean: number }
     }
@@ -585,10 +588,16 @@ async function writeGraph(vmafLogPath: string, frameRate: number) {
       },
     },
   })
+
   await fs.promises.writeFile(fpath, buffer)
 }
 
-type Crop = { w: string; h: string; x: string; y: string }
+interface Crop {
+  w: string
+  h: string
+  x: string
+  y: string
+}
 
 type VmafCrop = Record<
   string,
@@ -598,12 +607,12 @@ type VmafCrop = Record<
   }
 >
 
-const fixCrop = (c?: Record<string, string>) => {
+const fixCrop = (c?: Crop) => {
   return {
-    w: c?.w || 'iw',
-    h: c?.h || 'ih',
-    x: c?.x || '0',
-    y: c?.y || '0',
+    w: c?.w ?? 'iw',
+    h: c?.h ?? 'ih',
+    x: c?.x ?? '0',
+    y: c?.y ?? '0',
   }
 }
 
@@ -622,7 +631,7 @@ const splitFilter = (outputs: string[], suffix = '') => {
   return `split=${outputs.length}${out}${suffix}`
 }
 
-type VmafConfig = {
+interface VmafConfig {
   vmafPath: string
   vmafPreview: boolean
   vmafKeepIntermediateFiles: boolean
@@ -638,13 +647,14 @@ export async function calculateVmafScore(config: VmafConfig): Promise<VmafScore[
   log.debug(`calculateVmafScore referencePath=${vmafPath}`)
 
   const { reference, degraded } = await fixIvfFiles(vmafPath, vmafKeepSourceFiles)
-  const crop = vmafCrop ? (json5.parse(vmafCrop) as VmafCrop) : undefined
+
+  const crop: VmafCrop | undefined = vmafCrop ? json5.parse(vmafCrop) : undefined
 
   const ret: VmafScore[] = []
   for (const participantDisplayName of reference.keys()) {
     const vmafReferencePath = reference.get(participantDisplayName)
     if (!vmafReferencePath) continue
-    for (const degradedPath of degraded.get(participantDisplayName) || []) {
+    for (const degradedPath of degraded.get(participantDisplayName) ?? []) {
       try {
         const metrics = await runVmaf(vmafReferencePath, degradedPath, vmafPreview, crop)
         ret.push(metrics)

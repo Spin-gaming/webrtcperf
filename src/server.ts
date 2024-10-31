@@ -109,7 +109,7 @@ export class Server {
         })
     }
 
-    this.app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    this.app.use((err: Error, _req: express.Request, res: express.Response) => {
       log.error(`request error: ${err.message}`)
       res.status(500).send(err.message)
     })
@@ -541,7 +541,7 @@ export class Server {
             })
 
             ws.on('message', (data: Uint8Array) => {
-              if (!data || !data.byteLength) return
+              if (!data?.byteLength) return
               if (!headerWritten) {
                 stream.write(data)
                 headerWritten = true

@@ -97,10 +97,9 @@ const PageLogColors = {
 
 type PageLogColorsKey = 'error' | 'warn' | 'info' | 'log' | 'debug' | 'requestfailed'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SessionStats = Record<string, number | Record<string, number>>
 
-export type SessionParams = {
+export interface SessionParams {
   /** The chromium running instance url. */
   chromiumUrl: string
   /** The chromium executable path. */
@@ -224,9 +223,9 @@ export class Session extends EventEmitter {
   private readonly pageLogPath: string
   private readonly userAgent: string
   private readonly evaluateAfter: {
-    // eslint-disable-next-line @typescript-eslint/ban-types
+    // eslint-disable-next-line
     pageFunction: Function
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line
     args: any
   }[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -392,7 +391,7 @@ export class Session extends EventEmitter {
     /* this.audioRedForOpus = !!audioRedForOpus */
     this.url = url
     this.urlQuery = urlQuery
-    if (!this.urlQuery && url.indexOf('?') !== -1) {
+    if (!this.urlQuery && url.includes('?')) {
       const parts = url.split('?', 2)
       this.url = parts[0]
       this.urlQuery = parts[1]
@@ -492,15 +491,7 @@ export class Session extends EventEmitter {
 
     if (responseModifiers) {
       try {
-        const parsed = JSON5.parse(responseModifiers) as Record<
-          string,
-          {
-            search?: string
-            replace?: string
-            file?: string
-            headers?: Record<string, string>
-          }[]
-        >
+        const parsed = JSON5.parse(responseModifiers)
         Object.entries(parsed).forEach(([url, replacements]) => {
           if (!Array.isArray(replacements)) {
             throw new Error(
@@ -521,7 +512,7 @@ export class Session extends EventEmitter {
 
     if (downloadResponses) {
       try {
-        const parsed = JSON5.parse(downloadResponses) as { urlPattern: string; output: string; append?: boolean }[]
+        const parsed = JSON5.parse(downloadResponses)
         if (!Array.isArray(parsed)) throw new Error(`downloadResponses should be an array: ${downloadResponses}`)
         parsed.forEach(({ urlPattern, output, append }) => {
           this.downloadResponses.push({ urlPattern: getUrlPatternRegExp(urlPattern), output, append })
@@ -535,7 +526,7 @@ export class Session extends EventEmitter {
 
     if (cookies) {
       try {
-        this.cookies = JSON5.parse(cookies) as CookieParam[]
+        this.cookies = JSON5.parse(cookies)
       } catch (err) {
         log.error(`error parsing cookies: ${(err as Error).stack}`)
       }
@@ -833,8 +824,7 @@ export class Session extends EventEmitter {
     await Promise.all(
       Object.keys(this.exposedFunctions).map(
         async (name: string) =>
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await page.exposeFunction(name, (...args: any[]) => this.exposedFunctions[name](...args)),
+          await page.exposeFunction(name, (...args: unknown[]) => this.exposedFunctions[name](...args)),
       ),
     )
 
@@ -1275,14 +1265,12 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
       try {
         await page.evaluateOnNewDocument(
           (css: string) => {
-            // eslint-disable-next-line no-undef
             document.addEventListener('DOMContentLoaded', () => {
-              // eslint-disable-next-line no-undef
               const style = document.createElement('style')
               style.setAttribute('id', 'webrtcperf-extra-style')
               style.setAttribute('type', 'text/css')
               style.innerHTML = css
-              // eslint-disable-next-line no-undef
+
               document.head.appendChild(style)
             })
           },
@@ -1410,7 +1398,8 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
     }
   }
 
-  private async getNewPage(_tabIndex: number): Promise<Page> {
+  private async getNewPage(tabIndex: number): Promise<Page> {
+    log.debug(`getNewPage ${tabIndex}`)
     assert(this.context, 'NoBrowserContextCreated')
     return await this.context.newPage()
   }
@@ -1458,7 +1447,7 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
   /**
    * updateStats
    */
-  async updateStats(_now: number): Promise<SessionStats> {
+  async updateStats(): Promise<SessionStats> {
     if (!this.browser) {
       this.stats = {}
       return this.stats
@@ -1618,7 +1607,7 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
                   collectedStats as RtcStats,
                   pageIndex,
                   trackId,
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
                   value,
                   signalingHost,
                   participantName,

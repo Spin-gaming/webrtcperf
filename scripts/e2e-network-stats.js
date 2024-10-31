@@ -10,7 +10,6 @@ window.collectVideoEndToEndNetworkDelayStats = () => {
   return videoEndToEndNetworkDelayStats.mean()
 }
 
-// eslint-disable-next-line no-unused-vars
 function dumpFrame(encodedFrame, direction, offset = 0, end = 32) {
   const data = new Uint8Array(encodedFrame.data)
   let bytes = ''
@@ -259,7 +258,7 @@ if (
  * @param {string} id
  * @param {RTCRtpTransceiver} transceiver
  */
-// eslint-disable-next-line no-unused-vars
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const handleTransceiverForInsertableStreams = (id, transceiver) => {
   log(`RTCPeerConnection-${id} handleTransceiverForInsertableStreams ${transceiver.direction}`)
   if (

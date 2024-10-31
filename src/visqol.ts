@@ -5,7 +5,7 @@ import { getFiles, logger, runShellCommand } from './utils'
 
 const log = logger('webrtcperf:visqol')
 
-type VisqolConfig = {
+interface VisqolConfig {
   visqolPath: string
   visqolKeepSourceFiles: boolean
 }

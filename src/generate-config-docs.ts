@@ -39,9 +39,9 @@ data += `
 
 writeFile('docs/config.md', data).then(
   () => {
-	console.log('done'); // eslint-disable-line
+    console.log('done')
   },
   err => {
-	console.error(`Error writing file: ${err.message}`); // eslint-disable-line
+    console.error(`Error writing file: ${err.message}`)
   },
 )

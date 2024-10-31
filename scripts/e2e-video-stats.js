@@ -1,4 +1,4 @@
-/* global webrtcperf, log, loadScript, Tesseract, VideoFrame, createWorker */
+/* global webrtcperf, log, loadScript, Tesseract, createWorker */
 
 /**
  * Video end-to-end delay stats.

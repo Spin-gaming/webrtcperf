@@ -27,10 +27,10 @@ import { Session } from './session'
 // eslint-disable-next-line
 const ps = require('pidusage/lib/ps')
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 export const { Log } = require('debug-level')
 
-type Logger = {
+interface Logger {
   error: (...args: unknown[]) => void
   warn: (...args: unknown[]) => void
   info: (...args: unknown[]) => void
@@ -111,7 +111,7 @@ export function sha256(data: string): string {
 const ProcessStatsCache = new NodeCache({ stdTTL: 5, checkperiod: 10 })
 const ProcessChildrenCache = new NodeCache({ stdTTL: 5, checkperiod: 10 })
 
-type ProcessStat = {
+interface ProcessStat {
   cpu: number
   memory: number
 }
@@ -166,7 +166,7 @@ export async function getProcessStats(pid = 0, children = false): Promise<Proces
 }
 
 // Socket stats.
-type SocketStat = {
+interface SocketStat {
   recvBytes: number
   sendBytes: number
 }
@@ -191,7 +191,7 @@ export async function getSocketStats(processPid: number): Promise<SocketStat> {
 // System stats.
 const SystemStatsCache = new NodeCache({ stdTTL: 30, checkperiod: 60 })
 
-export type SystemStats = {
+export interface SystemStats {
   usedCpu: number
   usedMemory: number
   usedGpu: number
@@ -262,7 +262,7 @@ export function startRandomActivateAudio(
 
 export function stopRandomActivateAudio(): void {
   randomActivateAudioRunning = false
-  randomActivateAudioTimeoutId && clearTimeout(randomActivateAudioTimeoutId)
+  if (randomActivateAudioTimeoutId) clearTimeout(randomActivateAudioTimeoutId)
 }
 
 /**
@@ -308,7 +308,7 @@ export async function randomActivateAudio(
         pages[i] = null
       }
     }
-    const pagesWithAudio: Page[] = pages.filter(p => !!p) as Page[]
+    const pagesWithAudio: Page[] = pages.filter(p => !!p)
     //
     const index = Math.floor(Math.random() * pagesWithAudio.length)
     const enable = Math.round(100 * Math.random()) <= randomAudioProbability
@@ -353,7 +353,7 @@ export async function randomActivateAudio(
   } finally {
     if (randomActivateAudioRunning) {
       const nextTime = randomAudioPeriod * (1 + Math.random())
-      randomActivateAudioTimeoutId && clearTimeout(randomActivateAudioTimeoutId)
+      if (randomActivateAudioTimeoutId) clearTimeout(randomActivateAudioTimeoutId)
       randomActivateAudioTimeoutId = setTimeout(
         randomActivateAudio,
         nextTime * 1000,
@@ -369,7 +369,7 @@ export async function randomActivateAudio(
 /**
  * The {@link downloadUrl} output.
  */
-export type DownloadData = {
+export interface DownloadData {
   /** Download data. */
   data: string
   /** Start byte range. */
@@ -398,7 +398,7 @@ export async function downloadUrl(
   timeout = 60000,
 ): Promise<void | DownloadData> {
   log.debug(`downloadUrl url=${url} ${outputLocationPath}`)
-  const authParts = auth && auth.split(':')
+  const authParts = auth?.split(':')
   let writer: WriteStream | null = null
   if (outputLocationPath) {
     await fs.promises.mkdir(dirname(outputLocationPath), {
@@ -438,7 +438,7 @@ export async function downloadUrl(
       let error: Error | null = null
       writer.on('error', err => {
         error = err
-        writer && writer.close()
+        if (writer) writer.close()
         reject(err)
       })
       writer.on('close', () => {
@@ -485,7 +485,7 @@ export async function downloadUrl(
  */
 export async function uploadUrl(filePath: string, url: string, auth?: string): Promise<string> {
   log.debug(`uploadUrl ${filePath} to ${url}`)
-  const authParts = auth && auth.split(':')
+  const authParts = auth?.split(':')
   const formData = new FormData()
   formData.append('file', fs.createReadStream(filePath))
   const response = await axios({
@@ -609,7 +609,7 @@ SIGNALS.forEach(event =>
  * @returns The revision info.
  */
 export async function checkChromeExecutable(): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { loadConfig } = require('./config')
   const config = loadConfig()
   const cacheDir = path.join(os.homedir(), '.webrtcperf/chrome')
@@ -623,7 +623,7 @@ export async function checkChromeExecutable(): Promise<string> {
   log.debug(`Available chrome versions: ${revisions}`)
   const requiredRevision = config.chromiumVersion
   if (!requiredRevision) throw new Error('Chromium version not set')
-  if (revisions.indexOf(fixSemVer(requiredRevision)) === -1) {
+  if (!revisions.includes(fixSemVer(requiredRevision))) {
     log.info(`Downloading chrome ${requiredRevision}...`)
     let progress = 0
     await install({
@@ -726,8 +726,8 @@ export async function resolveIP(ip: string, cacheTime = 60 * 60 * 1000): Promise
             return ip
           }
         })
-        .catch(_err => {
-          // log.error(`resolveIP error: ${(err as Error).stack}`)
+        .catch(err => {
+          log.debug(`resolveIP error: ${(err as Error).stack}`)
           ipCache.set(ip, { host: ip, timestamp })
         }),
     ])
@@ -770,7 +770,7 @@ export async function systemGpuStats(): Promise<{ gpu: number; mem: number }> {
       return { gpu, mem: 0 }
     }
   } catch (err) {
-    // log.debug(`systemGpuStats error: ${(err as Error).stack}`)
+    log.debug(`systemGpuStats error: ${(err as Error).stack}`)
   }
   return { gpu: 0, mem: 0 }
 }
@@ -950,11 +950,11 @@ export async function portForwarder(port: number, listenInterface?: string) {
         .createServer(from => {
           const to = net.createConnection({ host: '127.0.0.1', port })
           from.once('error', err => {
-            log.error(`${msg} error: ${(err as Error).stack}`)
+            log.error(`${msg} error: ${err.stack}`)
             to.destroy()
           })
           to.once('error', err => {
-            log.error(`${msg} error: ${(err as Error).stack}`)
+            log.error(`${msg} error: ${err.stack}`)
             from.destroy()
           })
           from.pipe(to)
@@ -965,7 +965,7 @@ export async function portForwarder(port: number, listenInterface?: string) {
         log.debug(`${msg} listening`)
       })
       server.once('error', err => {
-        log.error(`${msg} error: ${(err as Error).stack}`)
+        log.error(`${msg} error: ${err.stack}`)
       })
     }
   })
@@ -1050,7 +1050,7 @@ export function enabledForSession(index: number, value: boolean | string | numbe
   } else if (value === false || value === 'false' || value === undefined) {
     return false
   } else if (typeof value === 'string') {
-    if (value.indexOf('-') !== -1) {
+    if (value.includes('-')) {
       const [start, end] = value.split('-').map(s => parseInt(s))
       if (isFinite(start) && index < start) {
         return false
@@ -1082,7 +1082,7 @@ export function increaseKey(o: Record<string, number>, key: string, value?: numb
 }
 
 export async function chunkedPromiseAll<T, R>(
-  items: Array<T>,
+  items: T[],
   f: (v: T, index: number) => Promise<R>,
   chunkSize = 1,
 ): Promise<R[]> {
@@ -1124,7 +1124,7 @@ export async function ffprobe(
   kind = 'video',
   entries = '',
   filters = '',
-  frameProcess?: (frame: Record<string, string>) => Record<string, string> | FFProbeProcess,
+  frameProcess?: (_frame: Record<string, string>) => Record<string, string> | FFProbeProcess,
 ): Promise<Record<string, string>[]> {
   const cmd = `\
 exec ffprobe -loglevel error ${kind === 'video' ? '-select_streams v' : ''} -show_frames -print_format compact \
@@ -1198,7 +1198,7 @@ export function buildIvfHeader(width = 1920, height = 1080, frameRate = 30, four
 
 import * as zmq from 'zeromq'
 
-export async function ffmpeg(command = 'video', processFn: (frame: Buffer) => void): Promise<void> {
+export async function ffmpeg(command = 'video', processFn: (_frame: Buffer) => void): Promise<void> {
   const port = 10000 + Math.floor(Math.random() * 10000)
   const cmd = `exec ffmpeg -hide_banner -loglevel warning ${command} zmq:tcp://127.0.0.1:${port}`
   log.debug(`${cmd}`)
