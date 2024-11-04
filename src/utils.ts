@@ -109,7 +109,7 @@ export function sha256(data: string): string {
 }
 
 const ProcessStatsCache = new NodeCache({ stdTTL: 5, checkperiod: 10 })
-const ProcessChildrenCache = new NodeCache({ stdTTL: 5, checkperiod: 10 })
+const ProcessChildrenCache = new NodeCache({ stdTTL: 15, checkperiod: 15 })
 
 interface ProcessStat {
   cpu: number
