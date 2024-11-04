@@ -170,11 +170,17 @@ webrtcperf.overrideLocalStorage = window.overrideLocalStorage = () => {
   }
 }
 
-webrtcperf.injectCss = window.injectCss = css => {
-  const style = document.createElement('style')
-  style.setAttribute('type', 'text/css')
+webrtcperf.injectCss = window.injectCss = (css, id = 'custom') => {
+  id = `webrtcperf-css-${id}`
+  let style = document.getElementById(id)
+  if (!style) {
+    style = document.createElement('style')
+    style.setAttribute('id', id)
+    style.setAttribute('type', 'text/css')
+    document.head.appendChild(style)
+  }
   style.innerHTML = css
-  document.head.appendChild(style)
+  return style
 }
 
 webrtcperf.watchObjectProperty = window.watchObjectProperty = (object, name, cb) => {
