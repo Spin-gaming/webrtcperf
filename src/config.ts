@@ -26,21 +26,22 @@ const index = {
       if (v === 'true' || v === 'false' || v === '') return
       if (v.includes('-')) {
         v.split('-').forEach(n => {
-          if (isNaN(parseInt(n)) || !isFinite(parseInt(n))) throw new Error(`Invalid index: ${n}`)
+          if (isNaN(parseInt(n)) || !isFinite(parseInt(n))) throw new Error(`Invalid string index: ${n}`)
         })
         return
       }
       if (v.includes(',')) {
         v.split(',').forEach(n => {
-          if (isNaN(parseInt(n)) || !isFinite(parseInt(n))) throw new Error(`Invalid index: ${n}`)
+          if (isNaN(parseInt(n)) || !isFinite(parseInt(n))) throw new Error(`Invalid string index: ${n}`)
         })
         return
       }
-      if (isNaN(parseInt(v)) || !isFinite(parseInt(v))) throw new Error(`Invalid index: ${v}`)
+      if (isNaN(parseInt(v)) || !isFinite(parseInt(v))) throw new Error(`Invalid string index: ${v}`)
+      return
     } else if (typeof v === 'number' || typeof v === 'boolean') {
       return
     }
-    throw new Error(`Invalid index: ${v}`)
+    throw new Error(`Invalid index: "${v}" (type: ${typeof v})`)
   },
 }
 
@@ -324,9 +325,10 @@ calculated using \`Date.now()\``,
     arg: 'start-timestamp',
   },
   enableDetailedStats: {
-    doc: `If \`true\`, each individual participant stats values will be reported.`,
-    format: 'Boolean',
-    default: false,
+    doc: `If detailed participant metrics values should be collected.`,
+    format: 'index',
+    default: '',
+    nullable: true,
     env: 'ENABLE_DETAILED_STATS',
     arg: 'enable-detailed-stats',
   },

@@ -14,7 +14,7 @@ import * as zlib from 'zlib'
 
 import { PageStatsNames, RtcStatsMetricNames, parseRtStatKey } from './rtcstats'
 import { Session } from './session'
-import { Scheduler, hideAuth, logger, toPrecision } from './utils'
+import { Scheduler, enabledForSession, hideAuth, logger, toPrecision } from './utils'
 
 export { FastStats }
 
@@ -321,7 +321,7 @@ export class Stats extends events.EventEmitter {
   readonly rtcStatsTimeout: number
   readonly customMetrics: Record<string, { labels?: string[] }> = {}
   readonly startTimestamp: number
-  readonly enableDetailedStats: boolean
+  readonly enableDetailedStats: boolean | string | number
   private readonly startTimestampString: string
 
   readonly sessions = new Map<number, Session>()
@@ -443,7 +443,7 @@ export class Stats extends events.EventEmitter {
     serverSecret: string
     startSessionId: number
     startTimestamp: number
-    enableDetailedStats: boolean
+    enableDetailedStats: boolean | string | number
     customMetricsLabels?: string
   }) {
     super()
@@ -715,7 +715,7 @@ export class Stats extends events.EventEmitter {
           alertRules: {},
         }
 
-        if (this.enableDetailedStats) {
+        if (this.enableDetailedStats !== false) {
           this.metrics[name].value = promCreateGauge(register, name, '', [
             'participantName',
             'trackId',
@@ -801,7 +801,7 @@ export class Stats extends events.EventEmitter {
       Object.values(stats.byCodec).forEach(s => s.reset())
       stats.byParticipantAndTrack = {}
     })
-    for (const session of this.sessions.values()) {
+    for (const [sessionId, session] of this.sessions.entries()) {
       this.collectedStatsConfig.url = `${hideAuth(session.url)}?${session.urlQuery}`
       this.collectedStatsConfig.pages += session.pages.size || 0
       const sessionStats = await session.updateStats()
@@ -827,7 +827,7 @@ export class Stats extends events.EventEmitter {
                 }
                 stats.push(value)
                 // Push participant and track values.
-                if (this.enableDetailedStats && participantName) {
+                if (enabledForSession(sessionId, this.enableDetailedStats) && participantName) {
                   collectedStats.byParticipantAndTrack[`${participantName}:${trackId || ''}`] = value
                 }
               } else if (typeof value === 'string') {
