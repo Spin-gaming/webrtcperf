@@ -1,4 +1,4 @@
-/* global webrtcperf, log, PeerConnections, handleTransceiverForInsertableStreams, handleTransceiverForPlayoutDelayHint, handleTransceiverForJitterBufferTarget, recognizeAudioTimestampWatermark, saveMediaTrack, stopSaveMediaTrack */
+/* global webrtcperf, log, PeerConnections, handleTransceiverForInsertableStreams, handleTransceiverForPlayoutDelayHint, handleTransceiverForJitterBufferTarget, saveMediaTrack, stopSaveMediaTrack */
 
 const timestampInsertableStreams = !!window.PARAMS?.timestampInsertableStreams
 
@@ -320,7 +320,7 @@ window.RTCPeerConnection = function (conf, options) {
         }
       } else if (receiver.track.kind === 'audio') {
         if (webrtcperf.enabledForSession(window.PARAMS?.timestampWatermarkAudio)) {
-          recognizeAudioTimestampWatermark(receiver.track)
+          webrtcperf.recognizeAudioTimestampWatermark(receiver.track)
         }
         if (webrtcperf.enabledForSession(window.PARAMS?.saveRecvAudioTrack)) {
           saveMediaTrack(receiver.track, 'recv').catch(err => log(`saveMediaTrack error: ${err.message}`))

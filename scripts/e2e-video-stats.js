@@ -205,18 +205,25 @@ async function loadTesseract() {
   return await window._tesseractData
 }
 
+webrtcperf.processingVideoTracks = new Set()
+
 /**
  * recognizeVideoTimestampWatermark
- * @param {MediaStreamTrack} videoTrack
+ * @param {MediaStreamTrack} track
  * @param {number} measureInterval
  */
-webrtcperf.recognizeVideoTimestampWatermark = async (videoTrack, measureInterval = 5) => {
-  log(`recognizeVideoTimestampWatermark ${videoTrack.id} ${videoTrack.label}`, videoTrack.getSettings())
+webrtcperf.recognizeVideoTimestampWatermark = async (track, measureInterval = 5) => {
+  if (webrtcperf.processingVideoTracks.has(track.id)) return
+  webrtcperf.processingVideoTracks.add(track)
+  track.addEventListener('ended', () => {
+    webrtcperf.processingVideoTracks.delete(track)
+  })
+  log(`recognizeVideoTimestampWatermark ${track.id} ${track.label}`, track.getSettings())
   const { scheduler } = await loadTesseract()
   let lastTimestamp = 0
 
   const trackProcessor = new window.MediaStreamTrackProcessor({
-    track: videoTrack,
+    track: track,
   })
   const writableStream = new window.WritableStream(
     {
@@ -226,7 +233,7 @@ webrtcperf.recognizeVideoTimestampWatermark = async (videoTrack, measureInterval
 
         if (timestamp - lastTimestamp > measureInterval * 1000000 && codedWidth && codedHeight) {
           lastTimestamp = timestamp
-          const textHeight = Math.round(Math.round(codedHeight / 18) * 1.2)
+          const textHeight = Math.max(Math.round(codedHeight / 15), 24)
           const bitmap = await createImageBitmap(videoFrame, 0, 0, codedWidth, textHeight)
           const canvas = new OffscreenCanvas(codedWidth, textHeight)
           const ctx = canvas.getContext('bitmaprenderer')
@@ -257,12 +264,17 @@ webrtcperf.recognizeVideoTimestampWatermark = async (videoTrack, measureInterval
         }
         videoFrame.close()
       },
-      close() {},
+      close() {
+        webrtcperf.processingVideoTracks.delete(track)
+      },
       abort(err) {
         log('WritableStream error:', err)
+        webrtcperf.processingVideoTracks.delete(track)
       },
     },
     new CountQueuingStrategy({ highWaterMark: 15 }),
   )
-  trackProcessor.readable.pipeTo(writableStream)
+  trackProcessor.readable.pipeTo(writableStream).catch(err => {
+    log(`recognizeVideoTimestampWatermark error: ${err.message}`)
+  })
 }

@@ -120,13 +120,17 @@ webrtcperf.applyAudioTimestampWatermark = mediaStream => {
   return newMediaStream
 }
 
-let processingAudioTracks = 0
+webrtcperf.processingAudioTracks = new Set()
 
-window.recognizeAudioTimestampWatermark = track => {
-  if (processingAudioTracks > 4) {
+webrtcperf.recognizeAudioTimestampWatermark = track => {
+  if (webrtcperf.processingAudioTracks.has(track)) return
+  if (webrtcperf.processingAudioTracks.size > 4) {
     return
   }
-  processingAudioTracks += 1
+  webrtcperf.processingAudioTracks.add(track)
+  track.addEventListener('ended', () => {
+    webrtcperf.processingAudioTracks.delete(track)
+  })
 
   const ggwave = webrtcperf.ggwave
   const samplesPerFrame = 1024
@@ -150,7 +154,6 @@ window.recognizeAudioTimestampWatermark = track => {
             log(`AudioTimestampWatermark rx init failed: ${instance}`)
             return
           }
-          processingAudioTracks += 1
         }
 
         try {
@@ -191,11 +194,12 @@ window.recognizeAudioTimestampWatermark = track => {
         }
       },
       close() {
-        processingAudioTracks -= 1
+        webrtcperf.processingAudioTracks.delete(track)
         if (instance) ggwave.free(instance)
       },
       abort(err) {
         log('AudioTimestampWatermark error:', err)
+        webrtcperf.processingAudioTracks.delete(track)
       },
     },
     new CountQueuingStrategy({ highWaterMark: 100 }),
