@@ -213,7 +213,7 @@ webrtcperf.processingVideoTracks = new Set()
  * @param {number} measureInterval
  */
 webrtcperf.recognizeVideoTimestampWatermark = async (track, measureInterval = 5) => {
-  if (webrtcperf.processingVideoTracks.has(track.id)) return
+  if (webrtcperf.processingVideoTracks.has(track)) return
   webrtcperf.processingVideoTracks.add(track)
   track.addEventListener('ended', () => {
     webrtcperf.processingVideoTracks.delete(track)
