@@ -62,20 +62,20 @@ async function applyGetDisplayMediaCrop(mediaStream) {
   }
 }
 
-const AudioTracks = new Set()
-const VideoTracks = new Set()
+webrtcperf.audioTracks = new Set()
+webrtcperf.videoTracks = new Set()
 
 /**
  * getActiveAudioTracks
  * @return {*} The active audio tracks array.
  */
 window.getActiveAudioTracks = () => {
-  for (const track of AudioTracks.values()) {
+  for (const track of webrtcperf.audioTracks.values()) {
     if (track.readyState === 'ended') {
-      AudioTracks.delete(track)
+      webrtcperf.audioTracks.delete(track)
     }
   }
-  return [...AudioTracks.values()]
+  return [...webrtcperf.audioTracks.values()]
 }
 
 /**
@@ -83,12 +83,12 @@ window.getActiveAudioTracks = () => {
  * @return {*} The active video tracks array.
  */
 window.getActiveVideoTracks = () => {
-  for (const track of VideoTracks.values()) {
+  for (const track of webrtcperf.videoTracks.values()) {
     if (track.readyState === 'ended') {
-      VideoTracks.delete(track)
+      webrtcperf.videoTracks.delete(track)
     }
   }
-  return [...VideoTracks.values()]
+  return [...webrtcperf.videoTracks.values()]
 }
 
 /**
@@ -100,8 +100,8 @@ function collectMediaTracks(mediaStream, onEnded = null) {
   if (audioTracks.length) {
     const track = audioTracks[0]
     /* log(`MediaStream new audio track ${track.id}`); */
-    track.addEventListener('ended', () => AudioTracks.delete(track))
-    AudioTracks.add(track)
+    track.addEventListener('ended', () => webrtcperf.audioTracks.delete(track))
+    webrtcperf.audioTracks.add(track)
   }
   const videoTracks = mediaStream.getVideoTracks()
   if (videoTracks.length) {
@@ -110,12 +110,12 @@ function collectMediaTracks(mediaStream, onEnded = null) {
     /* log(`MediaStream new video track ${track.id} ${
       settings.width}x${settings.height} ${settings.frameRate}fps`); */
     track.addEventListener('ended', () => {
-      VideoTracks.delete(track)
+      webrtcperf.videoTracks.delete(track)
       if (onEnded) {
         onEnded(track)
       }
     })
-    VideoTracks.add(track)
+    webrtcperf.videoTracks.add(track)
   }
   // Log applyConstraints calls.
   mediaStream.getTracks().forEach(track => {
@@ -194,8 +194,15 @@ if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
     if (window.PARAMS?.getDisplayMediaWaitTime > 0) {
       await sleep(window.PARAMS?.getDisplayMediaWaitTime)
     }
-    const mediaStream = await nativeGetDisplayMedia(constraints, ...args)
+    let mediaStream = await nativeGetDisplayMedia(constraints, ...args)
     await applyGetDisplayMediaCrop(mediaStream)
+    if (window.overrideGetDisplayMediaStream !== undefined) {
+      try {
+        mediaStream = await window.overrideGetDisplayMediaStream(mediaStream)
+      } catch (err) {
+        log(`overrideGetDisplayMediaStream error:`, err)
+      }
+    }
     collectMediaTracks(mediaStream, () => {
       if (stopFakeScreenshare) stopFakeScreenshare()
     })
