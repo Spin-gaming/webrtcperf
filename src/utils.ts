@@ -1196,14 +1196,14 @@ export function buildIvfHeader(width = 1920, height = 1080, frameRate = 30, four
   return buffer
 }
 
-import * as zmq from 'zeromq'
-
 export async function ffmpeg(command = 'video', processFn: (_frame: Buffer) => void): Promise<void> {
   const port = 10000 + Math.floor(Math.random() * 10000)
   const cmd = `exec ffmpeg -hide_banner -loglevel warning ${command} zmq:tcp://127.0.0.1:${port}`
   log.debug(`${cmd}`)
   let stderr = ''
 
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const zmq = require('zeromq')
   const sub = new zmq.Subscriber()
   const p = spawn(cmd, {
     shell: true,
