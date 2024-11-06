@@ -1,9 +1,10 @@
 /* global webrtcperf, log, sleep */
 
 webrtcperf.setupFakeScreenshare = ({
+  embed = '',
+  slides = 4,
   delay = 15000,
   animationDuration = 1000,
-  slides = 4,
   width = window.innerWidth,
   height = window.innerHeight,
 } = {}) => {
@@ -33,7 +34,7 @@ webrtcperf.setupFakeScreenshare = ({
     await sleep(delay)
   }
 
-  log(`FakeScreenshare start: delay=${delay} slides=${slides}`)
+  log(`FakeScreenshare start: slides=${slides} embed=${embed}`)
   const wrapper = document.createElement('div')
   wrapper.setAttribute('id', 'webrtcperf-fake-screenshare')
   wrapper.setAttribute(
@@ -41,29 +42,39 @@ webrtcperf.setupFakeScreenshare = ({
     'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 99999; background-color: black;',
   )
   document.body.appendChild(wrapper)
-  const slidesElements = []
-  for (let i = 0; i < slides; i++) {
-    const img = document.createElement('img')
-    img.setAttribute('src', `https://picsum.photos/seed/${i + 1}/${width}/${height}`)
-    img.setAttribute(
-      'style',
-      `position: absolute; width: ${width}px; height: ${height}px; transform: translateX(100%); opacity: 0;`,
-    )
-    wrapper.appendChild(img)
-    slidesElements.push(img)
-  }
-  let cur = 0
+
   let running = true
   let timeout = 0
-  const loopIteration = async () => {
-    const next = cur === slidesElements.length - 1 ? 0 : cur + 1
-    await applyAnimation(slidesElements[cur], slidesElements[next], delay)
-    cur = next
-    if (running) {
-      timeout = setTimeout(() => loopIteration())
+  if (embed) {
+    const el = document.createElement('iframe')
+    el.setAttribute('src', embed)
+    el.setAttribute('width', width)
+    el.setAttribute('height', height)
+    el.setAttribute('style', 'padding: 0; margin: 0; border: none;')
+    wrapper.appendChild(el)
+  } else {
+    const slidesElements = []
+    for (let i = 0; i < slides; i++) {
+      const img = document.createElement('img')
+      img.setAttribute('src', `https://picsum.photos/seed/${i + 1}/${width}/${height}`)
+      img.setAttribute(
+        'style',
+        `position: absolute; width: ${width}px; height: ${height}px; transform: translateX(100%); opacity: 0;`,
+      )
+      wrapper.appendChild(img)
+      slidesElements.push(img)
     }
+    let cur = 0
+    const loopIteration = async () => {
+      const next = cur === slidesElements.length - 1 ? 0 : cur + 1
+      await applyAnimation(slidesElements[cur], slidesElements[next], delay)
+      cur = next
+      if (running) {
+        timeout = setTimeout(() => loopIteration())
+      }
+    }
+    loopIteration()
   }
-  loopIteration()
 
   return () => {
     log(`FakeScreenshare stop`)
