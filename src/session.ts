@@ -45,6 +45,7 @@ import {
   resolvePackagePath,
   sha256,
   sleep,
+  waitStopProcess,
 } from './utils'
 
 const log = logger('webrtcperf:session')
@@ -1663,7 +1664,12 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
           throttleDownValuesLoss[pageKey] = throttleDownValues.loss || 0
           throttleDownValuesQueue[pageKey] = throttleDownValues.queue || 0
         } catch (err) {
-          log.error(`collectPeerConnectionStats for page ${pageIndex} error: ${(err as Error).stack}`)
+          const error = err as Error
+          if (error.message.includes('Execution context was destroyed, most likely because of a navigation.')) {
+            log.warn(`collectPeerConnectionStats for page ${pageIndex} error: ${error.message}`)
+          } else {
+            log.error(`collectPeerConnectionStats for page ${pageIndex} error: ${error.stack}`)
+          }
         }
       }),
     )
@@ -1730,25 +1736,36 @@ window.SERVER_USE_HTTPS = ${this.serverUseHttps};
           return page.close({ runBeforeUnload: true })
         }),
       )
-      let attempts = 20
-      while (this.pages.size > 0 && attempts > 0) {
-        await sleep(500)
-        attempts -= 1
+      if (this.pages.size > 0) {
+        const now = Date.now()
+        const maxWaitTime = 1000 * this.pages.size
+        while (this.pages.size > 0 && Date.now() - now < maxWaitTime) {
+          log.debug(`${this.id} waiting for ${this.pages.size} pages to close`)
+          await sleep(200)
+        }
+        if (this.pages.size > 0) {
+          log.warn(`${this.id} timeout closing ${this.pages.size} pages`)
+        }
       }
+
       this.browser.removeAllListeners()
       if (this.chromiumUrl) {
         log.debug(`${this.id} disconnect from browser`)
         try {
           await this.browser.disconnect()
         } catch (err) {
-          log.warn(`browser disconnect error: ${(err as Error).message}`)
+          log.warn(`${this.id} browser disconnect error: ${(err as Error).message}`)
         }
       } else {
-        log.debug(`${this.id} closing browser`)
-        try {
-          await this.browser.close()
-        } catch (err) {
-          log.error(`browser close error: ${(err as Error).stack}`)
+        const pid = this.browser.process()?.pid
+        if (pid) {
+          log.debug(`${this.id} closing browser (pid: ${pid})`)
+          try {
+            await this.browser.close()
+          } catch (err) {
+            log.error(`${this.id} browser close error: ${(err as Error).stack}`)
+          }
+          await waitStopProcess(pid, 5000)
         }
       }
       this.pages.clear()

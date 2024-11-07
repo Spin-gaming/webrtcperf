@@ -1254,3 +1254,29 @@ export async function analyzeColors(fpath: string) {
   )
   return { YAvg: Y / count, UAvg: U / count, VAvg: V / count, SatAvg: SAT / count, HueAvg: HUE / count }
 }
+
+/**
+ * Wait for the process to stop or kill it after the timeout.
+ * @param pid The process pid
+ * @param timeout The maximum wait time in milliseconds
+ * @returns `true` if the process stopped, `false` if the process was killed.
+ */
+export async function waitStopProcess(pid: number, timeout = 5000): Promise<boolean> {
+  log.debug(`waitStopProcess pid: ${pid} timeout: ${timeout}`)
+  const now = Date.now()
+  while (Date.now() - now < timeout) {
+    try {
+      process.kill(pid, 0)
+      await sleep(Math.max(timeout / 10, 200))
+    } catch {
+      return true
+    }
+  }
+  log.warn(`waitStopProcess pid: ${pid} timeout`)
+  try {
+    process.kill(pid, 'SIGKILL')
+  } catch {
+    return true
+  }
+  return false
+}
