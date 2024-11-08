@@ -548,7 +548,7 @@ export class Session extends EventEmitter {
   getBrowserArgs(): string[] {
     // https://peter.sh/experiments/chromium-command-line-switches/
     // https://source.chromium.org/chromium/chromium/src/+/main:testing/variations/fieldtrial_testing_config.json;l=8877?q=%20fieldtrial_testing_config.json&ss=chromium
-    let args = [
+    const args = [
       '--no-sandbox',
       '--no-zygote',
       '--ignore-certificate-errors',
@@ -587,34 +587,38 @@ export class Session extends EventEmitter {
 
     if (this.videoPath) {
       log.debug(`${this.id} using ${this.videoPath} as fake source`)
-      args.push(`--use-file-for-fake-video-capture=${this.videoPath.video}`)
-      args.push(`--use-file-for-fake-audio-capture=${this.videoPath.audio}`)
+      args.push(
+        `--use-file-for-fake-video-capture=${this.videoPath.video}`,
+        `--use-file-for-fake-audio-capture=${this.videoPath.audio}`,
+      )
     }
 
     if (this.enableGpu) {
-      args = args.concat([
-        '--enable-features=VaapiVideoDecoder',
+      args.push(
+        '--enable-features=VaapiVideoDecoder,VaapiVideoEncoder,VaapiVideoDecodeLinuxGL',
         '--ignore-gpu-blocklist',
         '--enable-gpu-rasterization',
         '--enable-zero-copy',
         '--disable-gpu-sandbox',
         '--enable-vulkan',
-      ])
+      )
       if (this.enableGpu === 'egl') {
         args.push('--use-gl=egl')
+      } else {
+        args.push('--use-gl=angle', '--use-angle=vulkan')
       }
     } else {
-      args = args.concat([
+      args.push(
         // Disables webgl support.
         '--disable-3d-apis',
         '--disable-site-isolation-trials',
         // '--renderer-process-limit=2',
         // '--single-process',
-      ])
+      )
     }
 
     if (this.enableBrowserLogging) {
-      args = args.concat(['--enable-logging=stderr', '--vmodule=*/webrtc/*=1'])
+      args.push('--enable-logging=stderr', '--vmodule=*/webrtc/*=1')
     }
 
     return args
