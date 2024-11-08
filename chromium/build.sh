@@ -6,7 +6,7 @@ export BUILDDIR=${HOME}/chromium
 export CHROMIUM_SRC=${BUILDDIR}/src/chromium/src
 export PATH="$PATH:${BUILDDIR}/depot_tools"
 
-export DEFAULT_BRANCH="tags/132.0.6779.1"
+export DEFAULT_BRANCH="tags/132.0.6825.1"
 
 function setup() {
     which gperf || sudo apt install -y gperf
@@ -49,7 +49,7 @@ enable_mse_mpeg2ts_stream_parser=true
 enable_reading_list=false
 enable_remoting=false
 enable_reporting=false
-enable_service_discovery=false
+enable_service_discovery=true
 enable_widevine=false
 exclude_unwind_tables=true
 google_api_key=""
@@ -59,11 +59,11 @@ treat_warnings_as_errors=false
 use_official_google_api_keys=false
 use_unofficial_version_number=false
 use_kerberos=false
+enable_vulkan=true
 
 cc_wrapper="CCACHE_SLOPPINESS=time_macros ccache"
 
 rtc_use_h264 = true
-rtc_include_ilbc = true
 rtc_build_examples = false
 rtc_enable_avx2 = true
 EOF
