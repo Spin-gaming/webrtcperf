@@ -98,19 +98,19 @@ export class Server {
     this.app.get('/empty-page', this.getEmptyPage.bind(this))
 
     if (this.serverData) {
-      fs.promises
-        .mkdir(this.serverData, { recursive: true })
-        .then(() => {
-          this.app.get('/data/*', this.getData.bind(this))
-        })
-        .catch(err => {
-          log.error(`mkdir ${this.serverData} error: ${err.message}`)
-          this.serverData = ''
-        })
+      log.debug(`using serverData: ${this.serverData}`)
+      fs.promises.mkdir(this.serverData, { recursive: true }).catch(err => {
+        log.error(`mkdir ${this.serverData} error: ${err.message}`)
+      })
+      this.app.get('/data', this.getDataArchive.bind(this))
+      this.app.get('/data/*', this.getData.bind(this))
     }
 
-    this.app.use((err: Error, _req: express.Request, res: express.Response) => {
-      log.error(`request error: ${err.message}`)
+    this.app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+      log.error(`request path=${req.path} error:`, err.stack)
+      if (res.headersSent) {
+        return next(err)
+      }
       res.status(500).send(err.message)
     })
   }
@@ -413,16 +413,21 @@ export class Server {
     if (!fs.existsSync(fpath)) {
       return next(new Error(`${paramPath} not found`))
     }
-    if (fs.lstatSync(fpath).isDirectory()) {
-      res.header('Content-Disposition', `attachment; filename="${path.basename(fpath)}.tar.gz"`)
-      res.setHeader('content-type', 'application/gzip')
-      tar.pack(fpath).pipe(zlib.createGzip()).pipe(res)
-    } else {
-      if (req.query.range && !req.headers.range) {
-        req.headers.range = `bytes=${req.query.range}`
-      }
-      res.sendFile(fpath)
+    if (req.query.range && !req.headers.range) {
+      req.headers.range = `bytes=${req.query.range}`
     }
+    res.sendFile(fpath)
+  }
+
+  private getDataArchive(req: express.Request, res: express.Response, next: express.NextFunction): void {
+    log.debug(`GET /data`, req.query)
+    const fpath = path.resolve(this.serverData)
+    if (!fs.lstatSync(fpath).isDirectory()) {
+      return next(new Error(`${fpath} is not a directory`))
+    }
+    res.header('Content-Disposition', `attachment; filename="${path.basename(fpath)}.tar.gz"`)
+    res.setHeader('content-type', 'application/gzip')
+    tar.pack(fpath).pipe(zlib.createGzip()).pipe(res)
   }
 
   /**
