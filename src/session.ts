@@ -568,6 +568,7 @@ export class Session extends EventEmitter {
       // '--auto-select-desktop-capture-source=Entire screen',
       // `--auto-select-tab-capture-source-by-title=about:blank`,
       `--remote-debugging-port=${this.debuggingPort ? this.debuggingPort + this.id : 0}`,
+      '--enable-features=VaapiVideoDecoder,VaapiVideoEncoder,VaapiVideoDecodeLinuxGL,ElementCapture',
     ]
 
     // 'WebRTC-VP8ConferenceTemporalLayers/2',
@@ -595,7 +596,6 @@ export class Session extends EventEmitter {
 
     if (this.enableGpu) {
       args.push(
-        '--enable-features=VaapiVideoDecoder,VaapiVideoEncoder,VaapiVideoDecodeLinuxGL',
         '--ignore-gpu-blocklist',
         '--enable-gpu-rasterization',
         '--enable-zero-copy',

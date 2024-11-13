@@ -53,12 +53,19 @@ async function applyGetDisplayMediaCrop(mediaStream) {
   if (!window.GET_DISPLAY_MEDIA_CROP) {
     return
   }
-  const area = document.querySelector(window.GET_DISPLAY_MEDIA_CROP)
+  const element = document.querySelector(window.GET_DISPLAY_MEDIA_CROP)
   const videoTrack = mediaStream.getVideoTracks()[0]
-  if (area && videoTrack && videoTrack.cropTo) {
-    log(`applyGetDisplayMediaCrop to "${window.GET_DISPLAY_MEDIA_CROP}"`)
-    const cropTarget = await window.CropTarget.fromElement(area)
-    await videoTrack.cropTo(cropTarget)
+  if (element && videoTrack) {
+    if ('RestrictionTarget' in window && 'fromElement' in window.RestrictionTarget) {
+      log(`applyGetDisplayMediaCrop with RestrictionTarget to "${window.GET_DISPLAY_MEDIA_CROP}"`)
+      const restrictionTarget = await window.RestrictionTarget.fromElement(element)
+      await videoTrack.restrictTo(restrictionTarget)
+    } else {
+      log(`applyGetDisplayMediaCrop to "${window.GET_DISPLAY_MEDIA_CROP}"`)
+      element.style.zIndex = 99999
+      const cropTarget = await window.CropTarget.fromElement(element)
+      await videoTrack.cropTo(cropTarget)
+    }
   }
 }
 
