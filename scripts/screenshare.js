@@ -5,8 +5,8 @@ webrtcperf.setupFakeScreenshare = ({
   slides = 4,
   delay = 15000,
   animationDuration = 1000,
-  width = window.innerWidth,
-  height = window.innerHeight,
+  width = 1920,
+  height = 1080,
 } = {}) => {
   if (document.querySelector('#webrtcperf-fake-screenshare')) {
     return
@@ -39,7 +39,7 @@ webrtcperf.setupFakeScreenshare = ({
   wrapper.setAttribute('id', 'webrtcperf-fake-screenshare')
   wrapper.setAttribute(
     'style',
-    'position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; background-color: black; isolation: isolate; transform-style: flat;',
+    `position: fixed; top: 0; left: 0; width: ${width}; height: ${height}; z-index: -1; background-color: black; isolation: isolate; transform-style: flat;`,
   )
   document.body.appendChild(wrapper)
   window.GET_DISPLAY_MEDIA_CROP = '#webrtcperf-fake-screenshare'
