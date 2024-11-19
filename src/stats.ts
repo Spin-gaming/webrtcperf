@@ -946,40 +946,22 @@ export class Stats extends events.EventEmitter {
 
   async writeDetailedStats() {
     if (!this.detailedStatsWriter) return
-    const participantStats = new Map<string, Record<string, string>>()
     const participantTrackStats = new Map<string, Record<string, string>>()
     Object.entries(this.collectedStats).forEach(([name, stats]) => {
       Object.entries(stats.byParticipantAndTrack).forEach(([label, value]) => {
-        const [participantName, trackId] = label.split(':', 2)
-        if (!trackId) {
-          let stats = participantStats.get(participantName)
-          if (!stats) {
-            stats = {}
-            participantStats.set(participantName, stats)
-          }
-          stats[name] = toPrecision(value, 6)
-        } else {
-          let stats = participantTrackStats.get(label)
-          if (!stats) {
-            stats = {}
-            participantTrackStats.set(label, stats)
-          }
-          stats[name] = toPrecision(value, 6)
+        let stats = participantTrackStats.get(label)
+        if (!stats) {
+          stats = {}
+          participantTrackStats.set(label, stats)
         }
+        stats[name] = toPrecision(value, 6)
       })
     })
     for (const [label, trackStats] of participantTrackStats.entries()) {
       const [participantName, trackId] = label.split(':', 2)
-      const stats = participantStats.get(participantName) || {}
       const values = [participantName, trackId]
       for (const name of this.statsNames) {
-        if (trackStats[name] !== undefined) {
-          values.push(trackStats[name])
-        } else if (stats[name] !== undefined) {
-          values.push(stats[name])
-        } else {
-          values.push('')
-        }
+        values.push(trackStats[name] ?? '')
       }
       await this.detailedStatsWriter.push(values)
     }
