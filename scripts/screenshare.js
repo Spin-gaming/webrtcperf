@@ -39,7 +39,7 @@ webrtcperf.setupFakeScreenshare = ({
   wrapper.setAttribute('id', 'webrtcperf-fake-screenshare')
   wrapper.setAttribute(
     'style',
-    `position: fixed; top: 0; left: 0; width: ${width}; height: ${height}; z-index: -1; background-color: black; isolation: isolate; transform-style: flat;`,
+    `position: fixed; top: 0; left: 0; width: ${width}px; height: ${height}px; z-index: -1; background-color: black; isolation: isolate; transform-style: flat;`,
   )
   document.body.appendChild(wrapper)
   window.GET_DISPLAY_MEDIA_CROP = '#webrtcperf-fake-screenshare'
