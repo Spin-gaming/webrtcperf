@@ -111,13 +111,13 @@ export async function recognizeFrames(fpath: string, recover = false, debug = fa
     fpath,
     'video',
     'frame=pts,frame_tags=lavfi.ocr.text,lavfi.ocr.confidence',
-    `crop=w=min(iw\\,ih):h=max((ih/15)\\,32):x=(iw-ow)/2:y=0:exact=1,ocr=whitelist=0123456789-`,
+    `scale=w=1280:h=-1:flags=bicubic,crop=w=min(iw\\,ih):h=max((ih/15)\\,32):x=(iw-ow)/2:y=0:exact=1,ocr=whitelist=0123456789-`,
     frame => {
       const pts = parseInt(frame.pts)
       if ((!frames.has(pts) || !frames.get(pts)) && frameRate) {
         const confidence = parseFloat(frame.tag_lavfi_ocr_confidence?.trim() || '0')
         const textMatch = regExp.exec(frame.tag_lavfi_ocr_text?.trim() || '')
-        if (confidence > 50 && textMatch) {
+        if (confidence > 0 && textMatch) {
           const { name, time } = textMatch.groups as { name: string; time: string }
           participantDisplayName = `Participant-${name.padStart(6, '0')}`
           const recognizedTime = parseInt(time)
@@ -165,6 +165,7 @@ ts: ${firstTimestamp.toFixed(2)}-${lastTimestamp.toFixed(2)} (${(lastTimestamp -
 }
 
 async function parseIvf(fpath: string, runRecognizer = false) {
+  const { width, height } = await parseVideo(fpath)
   const fname = path.basename(fpath)
   const fd = await fs.promises.open(fpath, 'r')
   const headerData = new ArrayBuffer(32)
@@ -174,8 +175,6 @@ async function parseIvf(fpath: string, runRecognizer = false) {
     await fd.close()
     throw new Error('Invalid IVF file')
   }
-  const width = headerView.getUint16(12, true)
-  const height = headerView.getUint16(14, true)
   const den = headerView.getUint32(16, true)
   const num = headerView.getUint32(20, true)
   const frameRate = den / num
@@ -291,6 +290,8 @@ export async function fixIvfFrames(filePath: string, keepSourceFile = true) {
     writtenFrames++
   }
 
+  headerView.setUint16(12, width, true)
+  headerView.setUint16(14, height, true)
   headerView.setUint32(24, writtenFrames, true)
   await fixedFd.write(new Uint8Array(headerView.buffer), 0, headerView.byteLength, 0)
 
@@ -461,6 +462,7 @@ export async function runVmaf(
 
   const filter = `\
 [0:v]\
+scale=w=-1:h=${degHeight}:flags=bicubic,\
 ${cropFilter(crop.deg, 0, ',')}\
 ${splitFilter(['deg_vmaf', 'deg_psnr', preview ? 'deg_preview' : ''])};\
 [1:v]\

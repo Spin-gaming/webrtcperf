@@ -121,7 +121,7 @@ const saveFileWorkerFn = () => {
           async write(/** @type VideoFrame */ frame) {
             const { codedWidth, codedHeight, timestamp, duration } = frame
             try {
-              log(`encode ${timestamp} ${duration} ${codedWidth}x${codedHeight} ${frame.format}`)
+              //log(`encode ${timestamp} ${duration} ${codedWidth}x${codedHeight} ${frame.format}`)
               if (!codedWidth || !codedHeight) return
               if (x || y || (width && width !== codedWidth) || (height && height !== codedHeight)) {
                 const w = Math.min(width, codedWidth)
@@ -150,7 +150,9 @@ const saveFileWorkerFn = () => {
           },
           close() {
             log(`saveTrack ${url} close`)
-            encoder?.flush()
+            if (encoder?.state === 'configured') {
+              encoder.flush()
+            }
             encoder?.close()
             ws.close()
             websocketControllers.delete(id)
@@ -158,7 +160,9 @@ const saveFileWorkerFn = () => {
           },
           abort(reason) {
             log(`saveTrack ${url} abort reason:`, reason)
-            encoder?.flush()
+            if (encoder?.state === 'configured') {
+              encoder.flush()
+            }
             encoder?.close()
             ws.close()
             websocketControllers.delete(id)
