@@ -104,9 +104,9 @@ async function getPeerConnectionStats(id, pc, now, raw = false, verbose = false)
         for (const s of stats.values()) {
           if (raw) {
             if (!values.raw) {
-              values.raw = [encodings]
+              values.raw = { encodings, stats: [] }
             }
-            values.raw.push(s)
+            values.raw.stats.push(s)
           }
           if (s.type === 'codec') {
             values.codec = s.mimeType.split('/')[1].toLowerCase()

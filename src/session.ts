@@ -571,14 +571,15 @@ export class Session extends EventEmitter {
       '--enable-features=VaapiVideoDecoder,VaapiVideoEncoder,VaapiVideoDecodeLinuxGL,ElementCapture',
     ]
 
-    // 'WebRTC-VP8ConferenceTemporalLayers/2',
-    // 'AutomaticTabDiscarding/Disabled',
-    // 'WebRTC-Vp9DependencyDescriptor/Enabled',
-    // 'WebRTC-DependencyDescriptorAdvertised/Enabled',
     let fieldTrials = this.chromiumFieldTrials || ''
-    /* if (this.audioRedForOpus) {
-      fieldTrials.push('WebRTC-Audio-Red-For-Opus/Enabled')
-    } */
+
+    if (this.enableBrowserLogging && this.pageLogPath) {
+      const eventLogPath = path.resolve(path.dirname(this.pageLogPath), `event-logging-${this.id}`)
+      fs.mkdirSync(eventLogPath, { recursive: true })
+      args.push('--enable-logging', '--vmodule=*/webrtc/*=1', `--webrtc-event-logging=${eventLogPath}`)
+      fieldTrials = 'WebRTC-RtcEventLogNewFormat/Disabled/' + fieldTrials
+    }
+
     if (this.maxVideoDecoders !== -1 && this.id >= this.maxVideoDecodersAt) {
       fieldTrials = `WebRTC-MaxVideoDecoders/${this.maxVideoDecoders}/` + fieldTrials
     }
@@ -615,10 +616,6 @@ export class Session extends EventEmitter {
         // '--renderer-process-limit=2',
         // '--single-process',
       )
-    }
-
-    if (this.enableBrowserLogging) {
-      args.push('--enable-logging=stderr', '--vmodule=*/webrtc/*=1')
     }
 
     return args
