@@ -110,6 +110,8 @@ export enum RtcStatsMetricNames {
   audioSentNackCountRecv = 'audioSentNackCountRecv',
   /** The sent audio round trip time. */
   audioSentRoundTripTime = 'audioSentRoundTripTime',
+  /** The sent audio jitter. */
+  audioSentJitter = 'audioSentJitter',
   /** The audio RTC transport round trip time. */
   audioSentTransportRoundTripTime = 'audioSentTransportRoundTripTime',
   /** The sent audio encoding max bitrate. */
@@ -161,6 +163,8 @@ export enum RtcStatsMetricNames {
   videoSentRoundTripTime = 'videoSentRoundTripTime',
   /** The transport send video round trip time. */
   videoSentTransportRoundTripTime = 'videoSentTransportRoundTripTime',
+  /** The video sent jitter. */
+  videoSentJitter = 'videoSentJitter',
   /** The sent video RTX packets. */
   videoSentRetransmittedPackets = 'videoSentRetransmittedPackets',
 
@@ -208,6 +212,8 @@ export enum RtcStatsMetricNames {
   screenSentRoundTripTime = 'screenSentRoundTripTime',
   /** The transport sent screen round trip time. */
   screenSentTransportRoundTripTime = 'screenSentTransportRoundTripTime',
+  /** The screen sent jitter. */
+  screenSentJitter = 'screenSentJitter',
   /** The screen audio RTX packets. */
   screenSentRetransmittedPackets = 'screenSentRetransmittedPackets',
 
@@ -439,6 +445,7 @@ export function updateRtcStats(
       setStats(stats, (prefix + 'SentNackCountRecv') as RtcStatsMetricNames, key, outboundRtp.nackCount)
       //setStats(stats, prefix + 'SentPacketsLostCount', key, outboundRtp.packetsLost)
       setStats(stats, (prefix + 'SentRoundTripTime') as RtcStatsMetricNames, key, outboundRtp.roundTripTime)
+      setStats(stats, (prefix + 'SentJitter') as RtcStatsMetricNames, key, outboundRtp.jitter)
       setStats(
         stats,
         (prefix + 'SentTransportRoundTripTime') as RtcStatsMetricNames,

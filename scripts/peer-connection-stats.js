@@ -127,6 +127,7 @@ async function getPeerConnectionStats(id, pc, now, raw = false, verbose = false)
               s.packetsLost = remoteInboundRtpStreamStats.packetsLost
               s.totalRoundTripTime = remoteInboundRtpStreamStats.totalRoundTripTime
               s.roundTripTimeMeasurements = remoteInboundRtpStreamStats.roundTripTimeMeasurements
+              s.jitter = remoteInboundRtpStreamStats.jitter
             }
             const {
               kind,
@@ -146,6 +147,7 @@ async function getPeerConnectionStats(id, pc, now, raw = false, verbose = false)
               nackCount,
               totalRoundTripTime,
               roundTripTimeMeasurements,
+              jitter,
               totalEncodeTime,
               totalPacketSendDelay,
             } = s
@@ -165,6 +167,7 @@ async function getPeerConnectionStats(id, pc, now, raw = false, verbose = false)
               pliCountReceived: pliCount,
               totalRoundTripTime,
               roundTripTimeMeasurements,
+              jitter,
               totalEncodeTime,
               totalPacketSendDelay,
               qualityLimitationResolutionChanges,
@@ -201,6 +204,7 @@ async function getPeerConnectionStats(id, pc, now, raw = false, verbose = false)
               'pliCountReceived',
               'totalRoundTripTime',
               'roundTripTimeMeasurements',
+              'jitter',
               'totalEncodeTime',
               'totalPacketSendDelay',
             ].forEach(prop => maxOptional(values.outboundRtp, outboundRtp, prop))

@@ -154,7 +154,7 @@ if (navigator.getUserMedia) {
 if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
   const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
   navigator.mediaDevices.getUserMedia = async function (constraints, ...args) {
-    log(`getUserMedia:`, constraints)
+    log(`getUserMedia:`, JSON.stringify(constraints, null, 2))
     try {
       overrideGetUserMedia(constraints)
     } catch (err) {
@@ -192,7 +192,7 @@ if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
 if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
   const nativeGetDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices)
   navigator.mediaDevices.getDisplayMedia = async function (constraints, ...args) {
-    log(`getDisplayMedia:`, constraints)
+    log(`getDisplayMedia:`, JSON.stringify(constraints, null, 2))
     let stopFakeScreenshare = null
     if (window.PARAMS?.fakeScreenshare) {
       stopFakeScreenshare = await webrtcperf.setupFakeScreenshare(window.PARAMS?.fakeScreenshare)

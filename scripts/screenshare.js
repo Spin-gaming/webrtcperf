@@ -39,7 +39,7 @@ webrtcperf.setupFakeScreenshare = ({
   wrapper.setAttribute('id', 'webrtcperf-fake-screenshare')
   wrapper.setAttribute(
     'style',
-    `position: fixed; top: 0; left: 0; width: ${width}px; height: ${height}px; z-index: -1; background-color: black; isolation: isolate; transform-style: flat;`,
+    `all: unset; position: fixed; top: 0; left: 0; width: ${width}px; height: ${height}px; z-index: -1; background-color: black; isolation: isolate; transform-style: flat;`,
   )
   document.body.appendChild(wrapper)
   window.GET_DISPLAY_MEDIA_CROP = '#webrtcperf-fake-screenshare'
@@ -60,7 +60,7 @@ webrtcperf.setupFakeScreenshare = ({
       img.setAttribute('src', `https://picsum.photos/seed/${i + 1}/${width}/${height}`)
       img.setAttribute(
         'style',
-        `position: absolute; width: ${width}px; height: ${height}px; transform: translateX(100%); opacity: 0;`,
+        `all: unset; position: absolute; width: ${width}px; height: ${height}px; transform: translateX(100%); opacity: 0;`,
       )
       wrapper.appendChild(img)
       slidesElements.push(img)
